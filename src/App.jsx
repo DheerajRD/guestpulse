@@ -89,6 +89,86 @@ const ImprovRow = ({ n, text }) => (
   </div>
 );
 
+const EmailSection = ({ analysis, restaurant, showToast }) => {
+  const [alertEmail,  setAlertEmail]  = useState("");
+  const [reportEmail, setReportEmail] = useState("");
+  const [stage,       setStage]       = useState("idle");
+  const [msg,         setMsg]         = useState("");
+
+  const send = async (type, email) => {
+    if (!email.trim()) { setMsg("Please enter your email address."); return; }
+    if (!email.includes("@")) { setMsg("Please enter a valid email."); return; }
+    setStage("sending"); setMsg("");
+    try {
+      const r = await fetch("/api/email", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ type, email: email.trim(), restaurantName: restaurant?.name, analysis, restaurant }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Failed to send");
+      setStage("sent");
+      setMsg(type === "alert" ? "✅ Alert email sent! Check your inbox." : "✅ Report sent! Check your inbox.");
+      showToast(type === "alert" ? "🚨 Alert sent!" : "📊 Report sent!");
+    } catch(e) {
+      setStage("error");
+      setMsg("⚠️ " + (e.message || "Failed to send email"));
+    }
+  };
+
+  return (
+    <Card style={{ marginTop:12 }}>
+      <Label>📧 Email Notifications</Label>
+
+      <div style={{ marginBottom:14, paddingBottom:14, borderBottom:`1px solid ${C.border}` }}>
+        <p style={{ fontSize:13, fontWeight:700, color:C.white, marginBottom:4 }}>🚨 Review Alert</p>
+        <p style={{ fontSize:12, color:C.muted, marginBottom:10, lineHeight:1.5 }}>
+          Get instantly emailed when a bad review appears so you can respond fast.
+        </p>
+        <div style={{ display:"flex", gap:8 }}>
+          <input value={alertEmail} onChange={e => setAlertEmail(e.target.value)}
+            placeholder="your@email.com"
+            style={{ flex:1, background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:10,
+              padding:"10px 14px", color:C.white, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+          <button onClick={() => send("alert", alertEmail)} disabled={stage === "sending"}
+            style={{ background:`linear-gradient(135deg,${C.red},#ff1744)`, border:"none", borderRadius:10,
+              padding:"0 16px", fontSize:12, fontWeight:700, color:"#fff", cursor:"pointer",
+              fontFamily:"inherit", whiteSpace:"nowrap", opacity: stage==="sending" ? 0.6 : 1 }}>
+            {stage === "sending" ? "Sending…" : "Send Alert 🚨"}
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <p style={{ fontSize:13, fontWeight:700, color:C.white, marginBottom:4 }}>📊 Weekly Report</p>
+        <p style={{ fontSize:12, color:C.muted, marginBottom:10, lineHeight:1.5 }}>
+          Get a full AI analysis of your restaurant sent to your email right now.
+        </p>
+        <div style={{ display:"flex", gap:8 }}>
+          <input value={reportEmail} onChange={e => setReportEmail(e.target.value)}
+            placeholder="your@email.com"
+            style={{ flex:1, background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:10,
+              padding:"10px 14px", color:C.white, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
+          <button onClick={() => send("report", reportEmail)} disabled={stage === "sending"}
+            style={{ background:`linear-gradient(135deg,${C.blue},${C.green})`, border:"none", borderRadius:10,
+              padding:"0 16px", fontSize:12, fontWeight:700, color:C.black, cursor:"pointer",
+              fontFamily:"inherit", whiteSpace:"nowrap", opacity: stage==="sending" ? 0.6 : 1 }}>
+            {stage === "sending" ? "Sending…" : "Send Report 📊"}
+          </button>
+        </div>
+      </div>
+
+      {msg && (
+        <div style={{ marginTop:10, padding:"10px 14px", borderRadius:10, fontSize:13,
+          background: stage === "sent" ? C.greenDim : C.redDim,
+          border: `1px solid ${stage === "sent" ? C.greenBorder : C.redBorder}`,
+          color: stage === "sent" ? C.green : C.red }}>
+          {msg}
+        </div>
+      )}
+    </Card>
+  );
+};
+
 export default function App() {
   const [screen,       setScreen]       = useState("welcome");
   const [prevScreen,   setPrevScreen]   = useState("welcome");
@@ -110,7 +190,6 @@ export default function App() {
   const [toast,        setToast]        = useState(null);
 
   const showToast = (msg, color=C.green) => { setToast({msg,color}); setTimeout(()=>setToast(null),2800); };
-
   const goTo = (s) => { setPrevScreen(screen); setScreen(s); setErrorMsg(""); };
   const goBack = () => { setScreen(prevScreen); setErrorMsg(""); };
 
@@ -142,7 +221,7 @@ export default function App() {
   };
 
   const handleOwnerAnalyse = async () => {
-    if (!ownerUrl.trim() && !ownerName.trim()) { setErrorMsg("Please enter your restaurant name or paste a Google Maps URL."); return; }
+    if (!ownerUrl.trim() && !ownerName.trim()) { setErrorMsg("Please enter your restaurant name or Google Maps URL."); return; }
     await runAnalysis(ownerUrl.trim() || ownerName.trim(), null);
     goTo("owner-dash");
   };
@@ -161,13 +240,12 @@ export default function App() {
       let lat, lng;
       if (searchMethod === "gps") {
         try {
-          const pos = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res, rej, {timeout:8000}));
+          const pos = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000}));
           lat = pos.coords.latitude; lng = pos.coords.longitude;
         } catch {}
       }
-      const body = { name, lat, lng, address: custAddress.trim(), city: custCity.trim() };
-      const r    = await fetch("/api/nearby", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify(body) });
-      const d    = await r.json();
+      const r = await fetch("/api/nearby", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ name, lat, lng, address: custAddress.trim(), city: custCity.trim() }) });
+      const d = await r.json();
       if (!r.ok) throw new Error(d.error || "Search failed");
       setBranches(d.branches || []);
       setProgress(100); setStage("done");
@@ -193,32 +271,30 @@ export default function App() {
       `Generated  : ${new Date().toLocaleString()}`,
       `Restaurant : ${restaurant.name}`,
       `Address    : ${restaurant.address}`,
-      `Rating     : ${restaurant.rating} ⭐ (${restaurant.totalReviews} total)`,
+      `Rating     : ${restaurant.rating} ⭐`,
       `Analysed   : ${analysis.totalAnalysed} reviews`,
-      "", "── HEALTH SCORE ─────────────────────────────",
-      `${analysis.healthScore}/100`,
-      "", "── FOR OWNER ────────────────────────────────",
+      "", "── HEALTH SCORE ─────", `${analysis.healthScore}/100`,
+      "", "── FOR OWNER ────────",
       analysis.forOwner?.conclusion || "",
       "URGENT: " + (analysis.forOwner?.urgentAction || ""),
       "", "IMPROVEMENTS:",
       ...(analysis.forOwner?.improvements || []).map((x,i) => `${i+1}. ${x}`),
-      "", "── TOP COMPLAINTS ───────────────────────────",
+      "", "── TOP COMPLAINTS ───",
       ...(analysis.topComplaints || []).map(c => `• ${c.issue} (${c.count}) [${c.severity}]`),
-      "", "── FOR CUSTOMER ─────────────────────────────",
+      "", "── FOR CUSTOMER ─────",
       `Verdict  : ${v.label}`,
       analysis.forCustomer?.conclusion || "",
       `Must Try : ${analysis.forCustomer?.mustTry}`,
       `Avoid    : ${analysis.forCustomer?.avoid}`,
-      "", "── FOOD & PRICES ────────────────────────────",
+      "", "── FOOD & PRICES ────",
       `Best Dishes  : ${(analysis.bestDishes||[]).join(", ")}`,
       `Avg 1 person : ${analysis.priceRange?.avgMealForOne}`,
       `Avg 2 people : ${analysis.priceRange?.avgMealForTwo}`,
-      "", "── ACCESSIBILITY ────────────────────────────",
+      "", "── ACCESSIBILITY ────",
       `Parking    : ${bool2label(analysis.accessibility?.parking?.available)}`,
       `Wheelchair : ${bool2label(analysis.accessibility?.wheelchair?.accessible)}`,
       `Kids Chairs: ${bool2label(analysis.accessibility?.kidsChairs?.available)}`,
-      `WiFi       : ${bool2label(analysis.accessibility?.wifi?.available)}`,
-      "", "── HYGIENE ──────────────────────────────────",
+      "", "── HYGIENE ──────────",
       `Score : ${analysis.hygiene?.score}/10 — ${analysis.hygiene?.label}`,
       "", "Report by GuestPulse AI",
     ];
@@ -260,59 +336,43 @@ export default function App() {
         </div>
       )}
 
-      <nav style={{ background:C.black2, borderBottom:`1px solid ${C.border}`, padding:"14px 24px",
-        display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <nav style={{ background:C.black2, borderBottom:`1px solid ${C.border}`, padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.blue},${C.green})`,
-            display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>💓</div>
-          <span style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800,
-            background:`linear-gradient(135deg,${C.blue2},${C.green})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
-            GuestPulse
-          </span>
-          <span style={{ fontSize:11, color:C.blue2, fontWeight:700, background:C.blueDim,
-            border:`1px solid ${C.blueBorder}`, padding:"2px 8px", borderRadius:100 }}>AI</span>
+          <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>💓</div>
+          <span style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, background:`linear-gradient(135deg,${C.blue2},${C.green})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>GuestPulse</span>
+          <span style={{ fontSize:11, color:C.blue2, fontWeight:700, background:C.blueDim, border:`1px solid ${C.blueBorder}`, padding:"2px 8px", borderRadius:100 }}>AI</span>
         </div>
         {analysis && restaurant && (
           <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:12, color:healthColor(hScore), fontWeight:700,
-              background:`${healthColor(hScore)}12`, border:`1px solid ${healthColor(hScore)}25`,
-              padding:"4px 12px", borderRadius:100 }}>
+            <span style={{ fontSize:12, color:healthColor(hScore), fontWeight:700, background:`${healthColor(hScore)}12`, border:`1px solid ${healthColor(hScore)}25`, padding:"4px 12px", borderRadius:100 }}>
               💚 Health {hScore}%
             </span>
-            <button className="btn-ghost" style={{ padding:"6px 14px", fontSize:12 }} onClick={downloadReport}>
-              📥 Report
-            </button>
+            <button className="btn-ghost" style={{ padding:"6px 14px", fontSize:12 }} onClick={downloadReport}>📥 Report</button>
           </div>
         )}
       </nav>
 
       <div style={{ maxWidth:720, margin:"0 auto", padding:"28px 18px 60px" }}>
 
+        {/* WELCOME */}
         {screen === "welcome" && (
           <div className="fade">
             <div style={{ textAlign:"center", marginBottom:36 }}>
-              <div style={{ width:72, height:72, borderRadius:20, background:`linear-gradient(135deg,${C.blue},${C.green})`,
-                display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, margin:"0 auto 18px" }}>💓</div>
+              <div style={{ width:72, height:72, borderRadius:20, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, margin:"0 auto 18px" }}>💓</div>
               <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:32, fontWeight:800, color:C.white, marginBottom:10, lineHeight:1.2 }}>
                 Welcome to<br/>
-                <span style={{ background:`linear-gradient(135deg,${C.blue2},${C.green})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
-                  GuestPulse AI
-                </span>
+                <span style={{ background:`linear-gradient(135deg,${C.blue2},${C.green})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>GuestPulse AI</span>
               </h1>
-              <p style={{ fontSize:15, color:C.muted, maxWidth:380, margin:"0 auto", lineHeight:1.7 }}>
-                AI-powered restaurant intelligence. Tell us who you are and we show you the right insights.
-              </p>
+              <p style={{ fontSize:15, color:C.muted, maxWidth:380, margin:"0 auto", lineHeight:1.7 }}>AI-powered restaurant intelligence. Tell us who you are and we show you the right insights.</p>
             </div>
             <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:28 }}>
-              <div className="role-btn" style={{ background:C.blueDim, borderColor:C.blueBorder }}
-                onClick={() => { setRole("owner"); goTo("owner-search"); }}>
+              <div className="role-btn" style={{ background:C.blueDim, borderColor:C.blueBorder }} onClick={() => { setRole("owner"); goTo("owner-search"); }}>
                 <div style={{ fontSize:44, marginBottom:12 }}>🍽️</div>
                 <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, marginBottom:8 }}>Restaurant Owner</div>
                 <div style={{ fontSize:12, color:C.muted, lineHeight:1.6, marginBottom:16 }}>Analyse reviews, fix issues, improve your rating</div>
                 <div style={{ background:`linear-gradient(135deg,${C.blue},${C.blue2})`, borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, color:"#fff" }}>I'm an Owner →</div>
               </div>
-              <div className="role-btn" style={{ background:C.greenDim, borderColor:C.greenBorder }}
-                onClick={() => { setRole("customer"); goTo("customer-search"); }}>
+              <div className="role-btn" style={{ background:C.greenDim, borderColor:C.greenBorder }} onClick={() => { setRole("customer"); goTo("customer-search"); }}>
                 <div style={{ fontSize:44, marginBottom:12 }}>👥</div>
                 <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, marginBottom:8 }}>Customer</div>
                 <div style={{ fontSize:12, color:C.muted, lineHeight:1.6, marginBottom:16 }}>Find best dishes, nearby branches, avoid bad visits</div>
@@ -328,6 +388,7 @@ export default function App() {
           </div>
         )}
 
+        {/* OWNER SEARCH */}
         {screen === "owner-search" && (
           <div className="fade">
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
@@ -361,6 +422,7 @@ export default function App() {
           </div>
         )}
 
+        {/* CUSTOMER SEARCH */}
         {screen === "customer-search" && (
           <div className="fade">
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
@@ -385,21 +447,17 @@ export default function App() {
                 <Label>City or zip code</Label>
                 <Inp value={custCity} onChange={setCustCity} placeholder="e.g. Austin TX or 78701"/>
               </>}
-              {searchMethod === "gps" && (
-                <p style={{ fontSize:12, color:C.muted, marginBottom:10 }}>📍 Your browser will ask for location permission to find nearest branches.</p>
-              )}
+              {searchMethod === "gps" && <p style={{ fontSize:12, color:C.muted, marginBottom:10 }}>📍 Browser will ask for location permission to find nearest branches.</p>}
               {errorMsg && <div style={{ color:C.red, fontSize:13, marginBottom:10 }}>⚠️ {errorMsg}</div>}
               {isLoading
-                ? <div style={{ textAlign:"center", padding:"16px 0" }}>
-                    <div className="pulse" style={{ fontSize:28, marginBottom:8 }}>📡</div>
-                    <p style={{ fontSize:13, color:C.muted }}>Searching nearby…</p>
-                  </div>
+                ? <div style={{ textAlign:"center", padding:"16px 0" }}><div className="pulse" style={{ fontSize:28, marginBottom:8 }}>📡</div><p style={{ fontSize:13, color:C.muted }}>Searching nearby…</p></div>
                 : <BtnPrimary onClick={findBranches}>{searchMethod==="gps"?"📍 Find Nearest Branches →":"🔍 Search Branches →"}</BtnPrimary>
               }
             </Card>
           </div>
         )}
 
+        {/* BRANCHES */}
         {screen === "branches" && (
           <div className="fade">
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
@@ -413,8 +471,7 @@ export default function App() {
               const isBad  = b.rating < 3.5;
               const dotColor = isGood ? C.green : isBad ? C.red : C.blue2;
               return (
-                <div key={b.placeId} className="hover-card"
-                  onClick={() => handleBranchSelect(b)}
+                <div key={b.placeId} className="hover-card" onClick={() => handleBranchSelect(b)}
                   style={{ background: i===0 ? C.greenDim : C.black3, border:`1px solid ${i===0?C.greenBorder:C.border}`, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer" }}>
                   <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
                     <div style={{ width:36, height:36, borderRadius:10, background:`${dotColor}18`, border:`1px solid ${dotColor}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>
@@ -442,6 +499,7 @@ export default function App() {
           </div>
         )}
 
+        {/* OWNER DASHBOARD */}
         {screen === "owner-dash" && (
           <div className="fade">
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
@@ -480,7 +538,7 @@ export default function App() {
                     </div>
                     <span style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:healthColor(hScore), flexShrink:0 }}>{hScore}%</span>
                   </div>
-                  <p style={{ fontSize:12, color:C.muted }}>{hScore>70?"Great health! Keep doing what's working.":hScore>40?"Room for improvement — key issues below.":"Urgent action needed — serious complaints found."}</p>
+                  <p style={{ fontSize:12, color:C.muted }}>{hScore>70?"Great health! Keep doing what's working.":hScore>40?"Room for improvement — key issues identified.":"Urgent action needed — serious complaints found."}</p>
                 </Card>
                 <Card style={{ borderLeft:`3px solid ${C.blue}` }}>
                   <Label>AI Conclusion for You</Label>
@@ -507,12 +565,14 @@ export default function App() {
                 <button className="btn-ghost" style={{ width:"100%", marginTop:6, padding:"12px" }} onClick={() => goTo("all-tabs")}>
                   View All Tabs — Food Guide, Hygiene, Accessibility →
                 </button>
+                <EmailSection analysis={analysis} restaurant={restaurant} showToast={showToast}/>
               </>
             )}
             {!isLoading && errorMsg && <Card style={{ border:`1px solid ${C.redBorder}` }}><p style={{ color:C.red, fontSize:13 }}>⚠️ {errorMsg}</p></Card>}
           </div>
         )}
 
+        {/* CUSTOMER DASHBOARD */}
         {screen === "customer-dash" && (
           <div className="fade">
             <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
@@ -569,6 +629,7 @@ export default function App() {
           </div>
         )}
 
+        {/* ALL TABS */}
         {screen === "all-tabs" && analysis && restaurant && (
           <div className="fade">
             <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap" }}>
@@ -583,7 +644,7 @@ export default function App() {
               <button className="btn-ghost" style={{ marginLeft:"auto", fontSize:11, padding:"4px 12px" }} onClick={downloadReport}>📥 Download</button>
             </div>
             <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
-              {[{k:"owner",label:"🍽️ Owner"},{k:"customer",label:"👥 Customer"},{k:"food",label:"🍔 Food"},{k:"access",label:"♿ Access"},{k:"hygiene",label:"🧹 Hygiene"}].map(t=>(
+              {[{k:"owner",label:"🍽️ Owner"},{k:"customer",label:"👥 Customer"},{k:"food",label:"🍔 Food"},{k:"access",label:"♿ Access"},{k:"hygiene",label:"🧹 Hygiene"},{k:"email",label:"📧 Alerts"}].map(t=>(
                 <button key={t.k} className={`tab-btn${activeTab===t.k?" on":""}`} onClick={()=>setActiveTab(t.k)}>{t.label}</button>
               ))}
             </div>
@@ -704,6 +765,13 @@ export default function App() {
                 )}
               </div>
             )}
+
+            {activeTab === "email" && (
+              <div className="fade">
+                <EmailSection analysis={analysis} restaurant={restaurant} showToast={showToast}/>
+              </div>
+            )}
+
           </div>
         )}
 

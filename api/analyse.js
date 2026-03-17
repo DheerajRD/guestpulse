@@ -56,8 +56,10 @@ module.exports = async function handler(req, res) {
     const data = await apiRes.json();
 
     if (!data.content || !data.content[0] || !data.content[0].text) {
-      return res.status(500).json({ error: 'No response from Claude AI' });
-    }
+  return res.status(500).json({ 
+    error: 'Claude API error: ' + JSON.stringify(data).substring(0, 200)
+  });
+}
 
     let raw = data.content[0].text;
 

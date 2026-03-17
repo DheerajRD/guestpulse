@@ -140,7 +140,9 @@ module.exports = async function handler(req, res) {
     }
 
     console.log('Analysis complete. Health score:', analysis.healthScore);
-    return res.status(200).json({ analysis: analysis });
+    const finalResponse = { analysis: analysis };
+console.log('Sending response keys:', Object.keys(analysis));
+return res.status(200).json(finalResponse);
 
   } catch (err) {
     console.error('analyse.js error:', err.message);

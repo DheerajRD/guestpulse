@@ -1,167 +1,151 @@
 import { useState } from "react";
 
 const C = {
-  black:  "#07090f", black2: "#0d1117", black3: "#161b27", black4: "#1e2535",
-  green:  "#00e676", green2: "#00c853", greenDim: "rgba(0,230,118,0.1)", greenBorder: "rgba(0,230,118,0.22)",
-  blue:   "#2979ff", blue2:  "#448aff", blueDim:  "rgba(41,121,255,0.1)",  blueBorder:  "rgba(41,121,255,0.22)",
-  red: "#ff5252", redDim: "rgba(255,82,82,0.08)", redBorder: "rgba(255,82,82,0.2)",
-  white: "#e8eaf6", muted: "rgba(232,234,246,0.45)", faint: "rgba(232,234,246,0.08)", border: "rgba(232,234,246,0.07)",
+  black:"#07090f",black2:"#0d1117",black3:"#161b27",black4:"#1e2535",
+  green:"#00e676",green2:"#00c853",greenDim:"rgba(0,230,118,0.1)",greenBorder:"rgba(0,230,118,0.22)",
+  blue:"#2979ff",blue2:"#448aff",blueDim:"rgba(41,121,255,0.1)",blueBorder:"rgba(41,121,255,0.22)",
+  red:"#ff5252",redDim:"rgba(255,82,82,0.08)",redBorder:"rgba(255,82,82,0.2)",
+  white:"#e8eaf6",muted:"rgba(232,234,246,0.45)",faint:"rgba(232,234,246,0.08)",border:"rgba(232,234,246,0.07)",
 };
 
-const VERDICT = {
-  recommended: { color: C.green,  bg: C.greenDim,  border: C.greenBorder, icon: "✅", label: "Recommended" },
-  mixed:       { color: C.blue2,  bg: C.blueDim,   border: C.blueBorder,  icon: "⚡", label: "Mixed Reviews" },
-  avoid:       { color: C.red,    bg: C.redDim,    border: C.redBorder,   icon: "🚫", label: "Avoid For Now" },
+const VERDICT={
+  recommended:{color:C.green,bg:C.greenDim,border:C.greenBorder,icon:"✅",label:"Recommended"},
+  mixed:{color:C.blue2,bg:C.blueDim,border:C.blueBorder,icon:"⚡",label:"Mixed Reviews"},
+  avoid:{color:C.red,bg:C.redDim,border:C.redBorder,icon:"🚫",label:"Avoid For Now"},
 };
 
-const bool2label = (v, yes="✅ Yes", no="❌ No") => v === true ? yes : v === false ? no : "—";
-const healthColor = s => s > 70 ? C.green : s > 40 ? C.blue2 : C.red;
+const bool2label=(v,yes="✅ Yes",no="❌ No")=>v===true?yes:v===false?no:"—";
+const healthColor=s=>s>70?C.green:s>40?C.blue2:C.red;
 
-const Inp = ({ placeholder, value, onChange, type="text", style={} }) => (
-  <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
-    style={{ width:"100%", background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:12,
-      padding:"12px 16px", color:C.white, fontSize:14, fontFamily:"inherit", outline:"none",
-      marginBottom:10, ...style }}/>
+const Inp=({placeholder,value,onChange,type="text",style={}})=>(
+  <input type={type} value={value} onChange={e=>onChange(e.target.value)} placeholder={placeholder}
+    style={{width:"100%",background:C.black2,border:`1.5px solid ${C.border}`,borderRadius:12,
+      padding:"12px 16px",color:C.white,fontSize:14,fontFamily:"inherit",outline:"none",marginBottom:10,...style}}/>
 );
 
-const BtnPrimary = ({ children, onClick, style={} }) => (
+const BtnPrimary=({children,onClick,style={}})=>(
   <button onClick={onClick}
-    style={{ width:"100%", background:`linear-gradient(135deg,${C.blue},${C.green})`, border:"none",
-      borderRadius:12, padding:"13px", fontSize:14, fontWeight:800, color:C.black,
-      cursor:"pointer", fontFamily:"'Syne',sans-serif", ...style }}>
+    style={{width:"100%",background:`linear-gradient(135deg,${C.blue},${C.green})`,border:"none",
+      borderRadius:12,padding:"13px",fontSize:14,fontWeight:800,color:C.black,
+      cursor:"pointer",fontFamily:"'Syne',sans-serif",...style}}>
     {children}
   </button>
 );
 
-const Card = ({ children, style={} }) => (
-  <div style={{ background:C.black3, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:12, ...style }}>
+const Card=({children,style={}})=>(
+  <div style={{background:C.black3,border:`1px solid ${C.border}`,borderRadius:16,padding:16,marginBottom:12,...style}}>
     {children}
   </div>
 );
 
-const Label = ({ children }) => (
-  <p style={{ fontSize:10, fontWeight:700, color:"rgba(232,234,246,0.3)", textTransform:"uppercase",
-    letterSpacing:"1px", marginBottom:10 }}>{children}</p>
+const Label=({children})=>(
+  <p style={{fontSize:10,fontWeight:700,color:"rgba(232,234,246,0.3)",textTransform:"uppercase",letterSpacing:"1px",marginBottom:10}}>
+    {children}
+  </p>
 );
 
-const RolePill = ({ role }) => (
-  <span style={{ display:"inline-flex", alignItems:"center", gap:6, padding:"4px 12px", borderRadius:100,
-    fontSize:11, fontWeight:700, fontFamily:"inherit",
-    background: role==="owner" ? C.blueDim  : C.greenDim,
-    border:     `1px solid ${role==="owner" ? C.blueBorder : C.greenBorder}`,
-    color:      role==="owner" ? C.blue2 : C.green }}>
-    {role==="owner" ? "🍽️ Owner Mode" : "👥 Customer Mode"}
+const RolePill=({role})=>(
+  <span style={{display:"inline-flex",alignItems:"center",gap:6,padding:"4px 12px",borderRadius:100,
+    fontSize:11,fontWeight:700,fontFamily:"inherit",
+    background:role==="owner"?C.blueDim:C.greenDim,
+    border:`1px solid ${role==="owner"?C.blueBorder:C.greenBorder}`,
+    color:role==="owner"?C.blue2:C.green}}>
+    {role==="owner"?"🍽️ Owner Mode":"👥 Customer Mode"}
   </span>
 );
 
-const BackBtn = ({ onClick }) => (
+const BackBtn=({onClick})=>(
   <button onClick={onClick}
-    style={{ display:"flex", alignItems:"center", gap:6, background:C.black3, border:`1px solid ${C.border}`,
-      borderRadius:9, padding:"6px 14px", fontSize:12, fontWeight:700, color:C.muted,
-      cursor:"pointer", fontFamily:"inherit" }}>
+    style={{display:"flex",alignItems:"center",gap:6,background:C.black3,border:`1px solid ${C.border}`,
+      borderRadius:9,padding:"6px 14px",fontSize:12,fontWeight:700,color:C.muted,cursor:"pointer",fontFamily:"inherit"}}>
     ← Back
   </button>
 );
 
-const InfoCard = ({ icon, label, value, sub, color }) => (
-  <div style={{ borderRadius:12, padding:"12px 14px", background:`${color}10`, border:`1px solid ${color}25` }}>
-    <div style={{ fontSize:20, marginBottom:6 }}>{icon}</div>
-    <div style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px", color, marginBottom:4, opacity:0.7 }}>{label}</div>
-    <div style={{ fontSize:13, fontWeight:700, color:C.white }}>{value}</div>
-    {sub && <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>{sub}</div>}
+const InfoCard=({icon,label,value,sub,color})=>(
+  <div style={{borderRadius:12,padding:"12px 14px",background:`${color}10`,border:`1px solid ${color}25`}}>
+    <div style={{fontSize:20,marginBottom:6}}>{icon}</div>
+    <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",color,marginBottom:4,opacity:0.7}}>{label}</div>
+    <div style={{fontSize:13,fontWeight:700,color:C.white}}>{value||"—"}</div>
+    {sub&&<div style={{fontSize:11,color:C.muted,marginTop:3}}>{sub}</div>}
   </div>
 );
 
-const ComplaintBar = ({ label, count, total, color }) => (
-  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:10 }}>
-    <span style={{ fontSize:12, color:C.muted, width:110, flexShrink:0 }}>{label}</span>
-    <div style={{ flex:1, background:"rgba(232,234,246,0.06)", borderRadius:100, height:5, overflow:"hidden" }}>
-      <div style={{ height:"100%", borderRadius:100, background:color, width:`${Math.min((count/Math.max(total,1))*100*3,100)}%`, transition:"width 1s ease" }}/>
+const ComplaintBar=({label,count,total,color})=>(
+  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:10}}>
+    <span style={{fontSize:12,color:C.muted,width:110,flexShrink:0}}>{label}</span>
+    <div style={{flex:1,background:"rgba(232,234,246,0.06)",borderRadius:100,height:5,overflow:"hidden"}}>
+      <div style={{height:"100%",borderRadius:100,background:color,width:`${Math.min((count/Math.max(total,1))*100*3,100)}%`,transition:"width 1s ease"}}/>
     </div>
-    <span style={{ fontSize:12, fontWeight:700, color, width:26, textAlign:"right" }}>{count}</span>
+    <span style={{fontSize:12,fontWeight:700,color,width:26,textAlign:"right"}}>{count}</span>
   </div>
 );
 
-const ImprovRow = ({ n, text }) => (
-  <div style={{ display:"flex", gap:10, alignItems:"flex-start", background:C.black3, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", marginBottom:8 }}>
-    <div style={{ width:22, height:22, borderRadius:"50%", background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, color:C.black, flexShrink:0, marginTop:1 }}>{n}</div>
-    <p style={{ fontSize:12, color:C.muted, lineHeight:1.6, margin:0 }}>{text}</p>
+const ImprovRow=({n,text})=>(
+  <div style={{display:"flex",gap:10,alignItems:"flex-start",background:C.black3,border:`1px solid ${C.border}`,borderRadius:10,padding:"10px 12px",marginBottom:8}}>
+    <div style={{width:22,height:22,borderRadius:"50%",background:`linear-gradient(135deg,${C.blue},${C.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:C.black,flexShrink:0,marginTop:1}}>{n}</div>
+    <p style={{fontSize:12,color:C.muted,lineHeight:1.6,margin:0}}>{text}</p>
   </div>
 );
 
-const EmailSection = ({ analysis, restaurant, showToast }) => {
-  const [alertEmail,  setAlertEmail]  = useState("");
-  const [reportEmail, setReportEmail] = useState("");
-  const [stage,       setStage]       = useState("idle");
-  const [msg,         setMsg]         = useState("");
+const EmailSection=({analysis,restaurant,showToast})=>{
+  const [alertEmail,setAlertEmail]=useState("");
+  const [reportEmail,setReportEmail]=useState("");
+  const [stage,setStage]=useState("idle");
+  const [msg,setMsg]=useState("");
 
-  const send = async (type, email) => {
-    if (!email.trim()) { setMsg("Please enter your email address."); return; }
-    if (!email.includes("@")) { setMsg("Please enter a valid email."); return; }
-    setStage("sending"); setMsg("");
-    try {
-      const r = await fetch("/api/email", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, email: email.trim(), restaurantName: restaurant?.name, analysis, restaurant }),
+  const send=async(type,email)=>{
+    if(!email.trim()){setMsg("Please enter your email.");return;}
+    if(!email.includes("@")){setMsg("Please enter a valid email.");return;}
+    setStage("sending");setMsg("");
+    try{
+      const r=await fetch("/api/email",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({type,email:email.trim(),restaurantName:restaurant?.name,analysis,restaurant}),
       });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Failed to send");
+      const d=await r.json();
+      if(!r.ok)throw new Error(d.error||"Failed to send");
       setStage("sent");
-      setMsg(type === "alert" ? "✅ Alert email sent! Check your inbox." : "✅ Report sent! Check your inbox.");
-      showToast(type === "alert" ? "🚨 Alert sent!" : "📊 Report sent!");
-    } catch(e) {
+      setMsg(type==="alert"?"✅ Alert sent! Check your inbox.":"✅ Report sent! Check your inbox.");
+      showToast(type==="alert"?"🚨 Alert sent!":"📊 Report sent!");
+    }catch(e){
       setStage("error");
-      setMsg("⚠️ " + (e.message || "Failed to send email"));
+      setMsg("⚠️ "+(e.message||"Failed to send email"));
     }
   };
 
-  return (
-    <Card style={{ marginTop:12 }}>
+  return(
+    <Card style={{marginTop:12}}>
       <Label>📧 Email Notifications</Label>
-
-      <div style={{ marginBottom:14, paddingBottom:14, borderBottom:`1px solid ${C.border}` }}>
-        <p style={{ fontSize:13, fontWeight:700, color:C.white, marginBottom:4 }}>🚨 Review Alert</p>
-        <p style={{ fontSize:12, color:C.muted, marginBottom:10, lineHeight:1.5 }}>
-          Get instantly emailed when a bad review appears so you can respond fast.
-        </p>
-        <div style={{ display:"flex", gap:8 }}>
-          <input value={alertEmail} onChange={e => setAlertEmail(e.target.value)}
-            placeholder="your@email.com"
-            style={{ flex:1, background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:10,
-              padding:"10px 14px", color:C.white, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
-          <button onClick={() => send("alert", alertEmail)} disabled={stage === "sending"}
-            style={{ background:`linear-gradient(135deg,${C.red},#ff1744)`, border:"none", borderRadius:10,
-              padding:"0 16px", fontSize:12, fontWeight:700, color:"#fff", cursor:"pointer",
-              fontFamily:"inherit", whiteSpace:"nowrap", opacity: stage==="sending" ? 0.6 : 1 }}>
-            {stage === "sending" ? "Sending…" : "Send Alert 🚨"}
+      <div style={{marginBottom:14,paddingBottom:14,borderBottom:`1px solid ${C.border}`}}>
+        <p style={{fontSize:13,fontWeight:700,color:C.white,marginBottom:4}}>🚨 Review Alert</p>
+        <p style={{fontSize:12,color:C.muted,marginBottom:10,lineHeight:1.5}}>Get emailed instantly when a bad review appears.</p>
+        <div style={{display:"flex",gap:8}}>
+          <input value={alertEmail} onChange={e=>setAlertEmail(e.target.value)} placeholder="your@email.com"
+            style={{flex:1,background:C.black2,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.white,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+          <button onClick={()=>send("alert",alertEmail)} disabled={stage==="sending"}
+            style={{background:`linear-gradient(135deg,${C.red},#ff1744)`,border:"none",borderRadius:10,padding:"0 16px",fontSize:12,fontWeight:700,color:"#fff",cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",opacity:stage==="sending"?0.6:1}}>
+            {stage==="sending"?"Sending…":"Send Alert 🚨"}
           </button>
         </div>
       </div>
-
       <div>
-        <p style={{ fontSize:13, fontWeight:700, color:C.white, marginBottom:4 }}>📊 Weekly Report</p>
-        <p style={{ fontSize:12, color:C.muted, marginBottom:10, lineHeight:1.5 }}>
-          Get a full AI analysis of your restaurant sent to your email right now.
-        </p>
-        <div style={{ display:"flex", gap:8 }}>
-          <input value={reportEmail} onChange={e => setReportEmail(e.target.value)}
-            placeholder="your@email.com"
-            style={{ flex:1, background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:10,
-              padding:"10px 14px", color:C.white, fontSize:13, fontFamily:"inherit", outline:"none" }}/>
-          <button onClick={() => send("report", reportEmail)} disabled={stage === "sending"}
-            style={{ background:`linear-gradient(135deg,${C.blue},${C.green})`, border:"none", borderRadius:10,
-              padding:"0 16px", fontSize:12, fontWeight:700, color:C.black, cursor:"pointer",
-              fontFamily:"inherit", whiteSpace:"nowrap", opacity: stage==="sending" ? 0.6 : 1 }}>
-            {stage === "sending" ? "Sending…" : "Send Report 📊"}
+        <p style={{fontSize:13,fontWeight:700,color:C.white,marginBottom:4}}>📊 Weekly Report</p>
+        <p style={{fontSize:12,color:C.muted,marginBottom:10,lineHeight:1.5}}>Get full AI analysis sent to your email.</p>
+        <div style={{display:"flex",gap:8}}>
+          <input value={reportEmail} onChange={e=>setReportEmail(e.target.value)} placeholder="your@email.com"
+            style={{flex:1,background:C.black2,border:`1.5px solid ${C.border}`,borderRadius:10,padding:"10px 14px",color:C.white,fontSize:13,fontFamily:"inherit",outline:"none"}}/>
+          <button onClick={()=>send("report",reportEmail)} disabled={stage==="sending"}
+            style={{background:`linear-gradient(135deg,${C.blue},${C.green})`,border:"none",borderRadius:10,padding:"0 16px",fontSize:12,fontWeight:700,color:C.black,cursor:"pointer",fontFamily:"inherit",whiteSpace:"nowrap",opacity:stage==="sending"?0.6:1}}>
+            {stage==="sending"?"Sending…":"Send Report 📊"}
           </button>
         </div>
       </div>
-
-      {msg && (
-        <div style={{ marginTop:10, padding:"10px 14px", borderRadius:10, fontSize:13,
-          background: stage === "sent" ? C.greenDim : C.redDim,
-          border: `1px solid ${stage === "sent" ? C.greenBorder : C.redBorder}`,
-          color: stage === "sent" ? C.green : C.red }}>
+      {msg&&(
+        <div style={{marginTop:10,padding:"10px 14px",borderRadius:10,fontSize:13,
+          background:stage==="sent"?C.greenDim:C.redDim,
+          border:`1px solid ${stage==="sent"?C.greenBorder:C.redBorder}`,
+          color:stage==="sent"?C.green:C.red}}>
           {msg}
         </div>
       )}
@@ -169,187 +153,185 @@ const EmailSection = ({ analysis, restaurant, showToast }) => {
   );
 };
 
-export default function App() {
-  const [screen,       setScreen]       = useState("welcome");
-  const [prevScreen,   setPrevScreen]   = useState("welcome");
-  const [role,         setRole]         = useState("owner");
-  const [activeTab,    setActiveTab]    = useState("owner");
-  const [searchMethod, setSearchMethod] = useState("gps");
-  const [ownerName,    setOwnerName]    = useState("");
-  const [ownerUrl,     setOwnerUrl]     = useState("");
-  const [custName,     setCustName]     = useState("");
-  const [custAddress,  setCustAddress]  = useState("");
-  const [custCity,     setCustCity]     = useState("");
-  const [directUrl,    setDirectUrl]    = useState("");
-  const [restaurant,   setRestaurant]   = useState(null);
-  const [analysis,     setAnalysis]     = useState(null);
-  const [branches,     setBranches]     = useState([]);
-  const [stage,        setStage]        = useState("idle");
-  const [progress,     setProgress]     = useState(0);
-  const [errorMsg,     setErrorMsg]     = useState("");
-  const [toast,        setToast]        = useState(null);
+function fixAnalysis(raw, reviewCount) {
+  if (!raw || typeof raw !== "object") return null;
+  const a = raw.analysis && typeof raw.analysis === "object" ? raw.analysis : raw;
+  if (!a.healthScore || a.healthScore === 0) a.healthScore = 50;
+  if (!a.totalAnalysed) a.totalAnalysed = reviewCount || 0;
+  if (!a.sentiment) a.sentiment = {positive:0,neutral:0,negative:0};
+  if (!a.topComplaints) a.topComplaints = [];
+  if (!a.topPraises) a.topPraises = [];
+  if (!a.bestDishes) a.bestDishes = [];
+  if (!a.dishesToAvoid) a.dishesToAvoid = [];
+  if (!a.priceRange) a.priceRange = {avgMealForOne:"—",avgMealForTwo:"—",valueRating:3,valueLabel:"Fair"};
+  if (!a.bestTimeToVisit) a.bestTimeToVisit = "Weekday lunch for best experience";
+  if (!a.forOwner) a.forOwner = {conclusion:"Reviews show mixed customer experiences.",urgentAction:"Address customer feedback immediately",improvements:["Improve service speed","Maintain food quality","Respond to all reviews"]};
+  if (!a.forCustomer) a.forCustomer = {conclusion:"This restaurant has received mixed reviews.",mustTry:"Ask staff for today's special",avoid:"Peak dinner rush hours",verdict:"mixed"};
+  if (!a.hygiene) a.hygiene = {score:7,label:"Good",kitchen:"Unknown",tables:"Unknown",staff:"Unknown",restrooms:"Unknown",ownerAlert:null};
+  if (!a.accessibility) a.accessibility = {parking:{available:null,detail:null},wheelchair:{accessible:null,detail:null},kidsChairs:{available:null,detail:null},wifi:{available:null,detail:null},noiseLevel:null,restrooms:null};
+  if (!a.fakeReviewCount) a.fakeReviewCount = 0;
+  if (!a.fakeReviewReason) a.fakeReviewReason = null;
+  return a;
+}
 
-  const showToast = (msg, color=C.green) => { setToast({msg,color}); setTimeout(()=>setToast(null),2800); };
-  const goTo = (s) => { setPrevScreen(screen); setScreen(s); setErrorMsg(""); };
-  const goBack = () => { setScreen(prevScreen); setErrorMsg(""); };
+export default function App(){
+  const [screen,setScreen]=useState("welcome");
+  const [prevScreen,setPrevScreen]=useState("welcome");
+  const [role,setRole]=useState("owner");
+  const [activeTab,setActiveTab]=useState("owner");
+  const [searchMethod,setSearchMethod]=useState("gps");
+  const [ownerName,setOwnerName]=useState("");
+  const [ownerUrl,setOwnerUrl]=useState("");
+  const [custName,setCustName]=useState("");
+  const [custAddress,setCustAddress]=useState("");
+  const [custCity,setCustCity]=useState("");
+  const [directUrl,setDirectUrl]=useState("");
+  const [restaurant,setRestaurant]=useState(null);
+  const [analysis,setAnalysis]=useState(null);
+  const [branches,setBranches]=useState([]);
+  const [stage,setStage]=useState("idle");
+  const [progress,setProgress]=useState(0);
+  const [errorMsg,setErrorMsg]=useState("");
+  const [toast,setToast]=useState(null);
 
-  const runAnalysis = async (placeUrl, placeId) => {
-    setErrorMsg(""); setRestaurant(null); setAnalysis(null);
-    try {
-      // Step 1 - fetch reviews
-      setStage("fetching"); setProgress(20);
-      const revRes  = await fetch("/api/reviews", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ placeUrl, placeId }),
+  const showToast=(msg,color=C.green)=>{setToast({msg,color});setTimeout(()=>setToast(null),2800);};
+  const goTo=(s)=>{setPrevScreen(screen);setScreen(s);setErrorMsg("");};
+  const goBack=()=>{setScreen(prevScreen);setErrorMsg("");};
+
+  const runAnalysis=async(placeUrl,placeId)=>{
+    setErrorMsg("");setRestaurant(null);setAnalysis(null);
+    try{
+      // STEP 1: Fetch reviews
+      setStage("fetching");setProgress(20);
+      const revRes=await fetch("/api/reviews",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({placeUrl,placeId}),
       });
-      const revData = await revRes.json();
-      if (!revRes.ok) throw new Error(revData.error || "Failed to fetch reviews");
-      if (!revData.reviews || revData.reviews.length === 0) {
-        throw new Error("No reviews found for this restaurant.");
-      }
+      let revData;
+      try{ revData=await revRes.json(); }
+      catch(e){ throw new Error("Failed to read reviews response"); }
+      if(!revRes.ok) throw new Error(revData.error||"Failed to fetch reviews");
+      if(!revData.reviews||revData.reviews.length===0) throw new Error("No reviews found for this restaurant.");
       setRestaurant(revData.restaurant);
-      setProgress(50);
+      setProgress(55);
 
-      // Step 2 - analyse reviews
-      setStage("analysing"); setProgress(65);
-      const anaRes  = await fetch("/api/analyse", {
-        method:"POST", headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({
-          reviews: revData.reviews,
-          restaurantName: revData.restaurant.name
-        }),
+      // STEP 2: Analyse
+      setStage("analysing");setProgress(65);
+      const anaRes=await fetch("/api/analyse",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({reviews:revData.reviews,restaurantName:revData.restaurant.name}),
       });
-
-      const anaText = await anaRes.text();
+      let rawText;
+      try{ rawText=await anaRes.text(); }
+      catch(e){ throw new Error("Failed to read analysis response"); }
       let anaData;
-      try {
-        anaData = JSON.parse(anaText);
-      } catch(parseErr) {
-        throw new Error("Failed to parse response");
-      }
+      try{ anaData=JSON.parse(rawText); }
+      catch(e){ throw new Error("Analysis response was not valid JSON"); }
+      if(!anaRes.ok) throw new Error(anaData.error||"Analysis failed");
 
-      if (!anaRes.ok) throw new Error(anaData.error || "Analysis failed");
+      // FIX: use fixAnalysis to guarantee all fields exist
+      const fixed=fixAnalysis(anaData, revData.reviews.length);
+      if(!fixed) throw new Error("Analysis returned no data. Please try again.");
 
-      let finalAnalysis = anaData.analysis || anaData;
-
-      if (!finalAnalysis || typeof finalAnalysis !== "object") {
-        throw new Error("Invalid analysis data received");
-      }
-      if (!finalAnalysis.healthScore || finalAnalysis.healthScore === 0) finalAnalysis.healthScore = 50;
-      if (!finalAnalysis.totalAnalysed) finalAnalysis.totalAnalysed = revData.reviews.length;
-      if (!finalAnalysis.sentiment) finalAnalysis.sentiment = { positive: 0, neutral: 0, negative: 0 };
-      if (!finalAnalysis.topComplaints) finalAnalysis.topComplaints = [];
-      if (!finalAnalysis.topPraises) finalAnalysis.topPraises = [];
-      if (!finalAnalysis.bestDishes) finalAnalysis.bestDishes = [];
-      if (!finalAnalysis.dishesToAvoid) finalAnalysis.dishesToAvoid = [];
-      if (!finalAnalysis.priceRange) finalAnalysis.priceRange = { avgMealForOne: "—", avgMealForTwo: "—", valueRating: 3, valueLabel: "Fair" };
-      if (!finalAnalysis.bestTimeToVisit) finalAnalysis.bestTimeToVisit = "Weekday lunch hours";
-      if (!finalAnalysis.forOwner) finalAnalysis.forOwner = { conclusion: "Reviews show mixed experiences.", urgentAction: "Review customer feedback", improvements: ["Improve service", "Maintain quality", "Respond to reviews"] };
-      if (!finalAnalysis.forCustomer) finalAnalysis.forCustomer = { conclusion: "Mixed reviews from customers.", mustTry: "Ask staff for recommendations", avoid: "Peak hours", verdict: "mixed" };
-      if (!finalAnalysis.hygiene) finalAnalysis.hygiene = { score: 7, label: "Good", kitchen: "Unknown", tables: "Unknown", staff: "Unknown", restrooms: "Unknown", ownerAlert: null };
-      if (!finalAnalysis.accessibility) finalAnalysis.accessibility = { parking: { available: null, detail: null }, wheelchair: { accessible: null, detail: null }, kidsChairs: { available: null, detail: null }, wifi: { available: null, detail: null }, noiseLevel: null, restrooms: null };
-      if (!finalAnalysis.fakeReviewCount) finalAnalysis.fakeReviewCount = 0;
-
-      setAnalysis(finalAnalysis);
+      setAnalysis(fixed);
       setProgress(100);
       setStage("done");
-
-    } catch(e) {
-      setErrorMsg(e.message || "Something went wrong. Please try again.");
-      setStage("error");
-      setProgress(0);
+    }catch(e){
+      setErrorMsg(e.message||"Something went wrong. Please try again.");
+      setStage("error");setProgress(0);
     }
   };
-  const handleOwnerAnalyse = async () => {
-    if (!ownerUrl.trim() && !ownerName.trim()) { setErrorMsg("Please enter your restaurant name or Google Maps URL."); return; }
-    await runAnalysis(ownerUrl.trim() || ownerName.trim(), null);
+
+  const handleOwnerAnalyse=async()=>{
+    if(!ownerUrl.trim()&&!ownerName.trim()){setErrorMsg("Please enter restaurant name or Google Maps URL.");return;}
+    await runAnalysis(ownerUrl.trim()||ownerName.trim(),null);
     goTo("owner-dash");
   };
 
-  const handleDirectUrl = async () => {
-    if (!directUrl.trim()) { setErrorMsg("Please paste a Google Maps URL."); return; }
-    await runAnalysis(directUrl.trim(), null);
-    goTo(role === "owner" ? "owner-dash" : "customer-dash");
+  const handleDirectUrl=async()=>{
+    if(!directUrl.trim()){setErrorMsg("Please paste a Google Maps URL.");return;}
+    await runAnalysis(directUrl.trim(),null);
+    goTo(role==="owner"?"owner-dash":"customer-dash");
   };
 
-  const findBranches = async () => {
-    const name = custName.trim();
-    if (!name) { setErrorMsg("Please enter a restaurant name."); return; }
-    setErrorMsg(""); setBranches([]); setStage("searching"); setProgress(30);
-    try {
-      let lat, lng;
-      if (searchMethod === "gps") {
-        try {
-          const pos = await new Promise((res,rej) => navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000}));
-          lat = pos.coords.latitude; lng = pos.coords.longitude;
-        } catch {}
+  const findBranches=async()=>{
+    const name=custName.trim();
+    if(!name){setErrorMsg("Please enter a restaurant name.");return;}
+    setErrorMsg("");setBranches([]);setStage("searching");setProgress(30);
+    try{
+      let lat,lng;
+      if(searchMethod==="gps"){
+        try{
+          const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000}));
+          lat=pos.coords.latitude;lng=pos.coords.longitude;
+        }catch{}
       }
-      const r = await fetch("/api/nearby", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({ name, lat, lng, address: custAddress.trim(), city: custCity.trim() }) });
-      const d = await r.json();
-      if (!r.ok) throw new Error(d.error || "Search failed");
-      setBranches(d.branches || []);
-      setProgress(100); setStage("done");
+      const r=await fetch("/api/nearby",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name,lat,lng,address:custAddress.trim(),city:custCity.trim()})});
+      const d=await r.json();
+      if(!r.ok) throw new Error(d.error||"Search failed");
+      setBranches(d.branches||[]);
+      setProgress(100);setStage("done");
       goTo("branches");
-    } catch(e) {
-      setErrorMsg(e.message || "Search failed");
-      setStage("error"); setProgress(0);
+    }catch(e){
+      setErrorMsg(e.message||"Search failed");
+      setStage("error");setProgress(0);
     }
   };
 
-  const handleBranchSelect = async (branch) => {
-    await runAnalysis(null, branch.placeId);
+  const handleBranchSelect=async(branch)=>{
+    await runAnalysis(null,branch.placeId);
     goTo("customer-dash");
   };
 
-  const downloadReport = () => {
-    if (!analysis || !restaurant) return;
-    const v = VERDICT[analysis.forCustomer?.verdict] || VERDICT.mixed;
-    const lines = [
+  const downloadReport=()=>{
+    if(!analysis||!restaurant)return;
+    const v=VERDICT[analysis.forCustomer?.verdict]||VERDICT.mixed;
+    const lines=[
       "╔═══════════════════════════════════════════╗",
       "║         GUESTPULSE AI — FULL REPORT       ║",
       "╚═══════════════════════════════════════════╝",
       `Generated  : ${new Date().toLocaleString()}`,
       `Restaurant : ${restaurant.name}`,
       `Address    : ${restaurant.address}`,
-      `Rating     : ${restaurant.rating} ⭐`,
+      `Rating     : ${restaurant.rating} ⭐ (${restaurant.totalReviews} total)`,
       `Analysed   : ${analysis.totalAnalysed} reviews`,
-      "", "── HEALTH SCORE ─────", `${analysis.healthScore}/100`,
-      "", "── FOR OWNER ────────",
-      analysis.forOwner?.conclusion || "",
-      "URGENT: " + (analysis.forOwner?.urgentAction || ""),
-      "", "IMPROVEMENTS:",
-      ...(analysis.forOwner?.improvements || []).map((x,i) => `${i+1}. ${x}`),
-      "", "── TOP COMPLAINTS ───",
-      ...(analysis.topComplaints || []).map(c => `• ${c.issue} (${c.count}) [${c.severity}]`),
-      "", "── FOR CUSTOMER ─────",
+      "","── HEALTH SCORE ─────",`${analysis.healthScore}/100`,
+      "","── FOR OWNER ────────",
+      analysis.forOwner?.conclusion||"",
+      "URGENT: "+(analysis.forOwner?.urgentAction||""),
+      "","IMPROVEMENTS:",
+      ...(analysis.forOwner?.improvements||[]).map((x,i)=>`${i+1}. ${x}`),
+      "","── TOP COMPLAINTS ───",
+      ...(analysis.topComplaints||[]).map(c=>`• ${c.issue} (${c.count}) [${c.severity}]`),
+      "","── FOR CUSTOMER ─────",
       `Verdict  : ${v.label}`,
-      analysis.forCustomer?.conclusion || "",
-      `Must Try : ${analysis.forCustomer?.mustTry}`,
-      `Avoid    : ${analysis.forCustomer?.avoid}`,
-      "", "── FOOD & PRICES ────",
-      `Best Dishes  : ${(analysis.bestDishes||[]).join(", ")}`,
-      `Avg 1 person : ${analysis.priceRange?.avgMealForOne}`,
-      `Avg 2 people : ${analysis.priceRange?.avgMealForTwo}`,
-      "", "── ACCESSIBILITY ────",
+      analysis.forCustomer?.conclusion||"",
+      `Must Try : ${analysis.forCustomer?.mustTry||"—"}`,
+      `Avoid    : ${analysis.forCustomer?.avoid||"—"}`,
+      "","── FOOD & PRICES ────",
+      `Best Dishes  : ${(analysis.bestDishes||[]).join(", ")||"—"}`,
+      `Avg 1 person : ${analysis.priceRange?.avgMealForOne||"—"}`,
+      `Avg 2 people : ${analysis.priceRange?.avgMealForTwo||"—"}`,
+      "","── ACCESSIBILITY ────",
       `Parking    : ${bool2label(analysis.accessibility?.parking?.available)}`,
       `Wheelchair : ${bool2label(analysis.accessibility?.wheelchair?.accessible)}`,
       `Kids Chairs: ${bool2label(analysis.accessibility?.kidsChairs?.available)}`,
-      "", "── HYGIENE ──────────",
-      `Score : ${analysis.hygiene?.score}/10 — ${analysis.hygiene?.label}`,
-      "", "Report by GuestPulse AI",
+      "","── HYGIENE ──────────",
+      `Score : ${analysis.hygiene?.score||"—"}/10 — ${analysis.hygiene?.label||"—"}`,
+      "","Report by GuestPulse AI",
     ];
-    const blob = new Blob([lines.join("\n")], {type:"text/plain"});
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement("a");
-    a.href = url; a.download = `${restaurant.name}-guestpulse.txt`; a.click();
+    const blob=new Blob([lines.join("\n")],{type:"text/plain"});
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;a.download=`${restaurant.name}-guestpulse.txt`;a.click();
     showToast("Report downloaded!");
   };
 
-  const isLoading = stage === "fetching" || stage === "analysing" || stage === "searching";
-  const hScore    = analysis?.healthScore || 0;
+  const isLoading=stage==="fetching"||stage==="analysing"||stage==="searching";
+  const hScore=analysis?.healthScore||0;
 
-  return (
-    <div style={{ minHeight:"100vh", background:C.black, color:C.white, fontFamily:"'DM Sans','Segoe UI',sans-serif" }}>
+  return(
+    <div style={{minHeight:"100vh",background:C.black,color:C.white,fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@300;400;500;600;700&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
@@ -368,170 +350,160 @@ export default function App() {
         .role-btn:hover{transform:translateY(-4px)}
       `}</style>
 
-      {toast && (
-        <div style={{ position:"fixed", top:20, right:20, zIndex:9999, background:toast.color,
-          color:C.black, padding:"10px 20px", borderRadius:10, fontSize:13, fontWeight:700,
-          boxShadow:"0 4px 20px rgba(0,0,0,.4)", animation:"fu .3s ease" }}>
+      {toast&&(
+        <div style={{position:"fixed",top:20,right:20,zIndex:9999,background:toast.color,
+          color:C.black,padding:"10px 20px",borderRadius:10,fontSize:13,fontWeight:700,
+          boxShadow:"0 4px 20px rgba(0,0,0,.4)",animation:"fu .3s ease"}}>
           {toast.msg}
         </div>
       )}
 
-      <nav style={{ background:C.black2, borderBottom:`1px solid ${C.border}`, padding:"14px 24px", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
-        <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-          <div style={{ width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16 }}>💓</div>
-          <span style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, background:`linear-gradient(135deg,${C.blue2},${C.green})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>GuestPulse</span>
-          <span style={{ fontSize:11, color:C.blue2, fontWeight:700, background:C.blueDim, border:`1px solid ${C.blueBorder}`, padding:"2px 8px", borderRadius:100 }}>AI</span>
+      <nav style={{background:C.black2,borderBottom:`1px solid ${C.border}`,padding:"14px 24px",display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{width:32,height:32,borderRadius:9,background:`linear-gradient(135deg,${C.blue},${C.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16}}>💓</div>
+          <span style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,background:`linear-gradient(135deg,${C.blue2},${C.green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>GuestPulse</span>
+          <span style={{fontSize:11,color:C.blue2,fontWeight:700,background:C.blueDim,border:`1px solid ${C.blueBorder}`,padding:"2px 8px",borderRadius:100}}>AI</span>
         </div>
-        {analysis && restaurant && (
-          <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-            <span style={{ fontSize:12, color:healthColor(hScore), fontWeight:700, background:`${healthColor(hScore)}12`, border:`1px solid ${healthColor(hScore)}25`, padding:"4px 12px", borderRadius:100 }}>
+        {analysis&&restaurant&&(
+          <div style={{display:"flex",alignItems:"center",gap:10}}>
+            <span style={{fontSize:12,color:healthColor(hScore),fontWeight:700,background:`${healthColor(hScore)}12`,border:`1px solid ${healthColor(hScore)}25`,padding:"4px 12px",borderRadius:100}}>
               💚 Health {hScore}%
             </span>
-            <button className="btn-ghost" style={{ padding:"6px 14px", fontSize:12 }} onClick={downloadReport}>📥 Report</button>
+            <button className="btn-ghost" style={{padding:"6px 14px",fontSize:12}} onClick={downloadReport}>📥 Report</button>
           </div>
         )}
       </nav>
 
-      <div style={{ maxWidth:720, margin:"0 auto", padding:"28px 18px 60px" }}>
+      <div style={{maxWidth:720,margin:"0 auto",padding:"28px 18px 60px"}}>
 
-        {/* WELCOME */}
-        {screen === "welcome" && (
+        {screen==="welcome"&&(
           <div className="fade">
-            <div style={{ textAlign:"center", marginBottom:36 }}>
-              <div style={{ width:72, height:72, borderRadius:20, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:34, margin:"0 auto 18px" }}>💓</div>
-              <h1 style={{ fontFamily:"'Syne',sans-serif", fontSize:32, fontWeight:800, color:C.white, marginBottom:10, lineHeight:1.2 }}>
+            <div style={{textAlign:"center",marginBottom:36}}>
+              <div style={{width:72,height:72,borderRadius:20,background:`linear-gradient(135deg,${C.blue},${C.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:34,margin:"0 auto 18px"}}>💓</div>
+              <h1 style={{fontFamily:"'Syne',sans-serif",fontSize:32,fontWeight:800,color:C.white,marginBottom:10,lineHeight:1.2}}>
                 Welcome to<br/>
-                <span style={{ background:`linear-gradient(135deg,${C.blue2},${C.green})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>GuestPulse AI</span>
+                <span style={{background:`linear-gradient(135deg,${C.blue2},${C.green})`,WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>GuestPulse AI</span>
               </h1>
-              <p style={{ fontSize:15, color:C.muted, maxWidth:380, margin:"0 auto", lineHeight:1.7 }}>AI-powered restaurant intelligence. Tell us who you are and we show you the right insights.</p>
+              <p style={{fontSize:15,color:C.muted,maxWidth:380,margin:"0 auto",lineHeight:1.7}}>AI-powered restaurant intelligence. Tell us who you are and we show you the right insights.</p>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:14, marginBottom:28 }}>
-              <div className="role-btn" style={{ background:C.blueDim, borderColor:C.blueBorder }} onClick={() => { setRole("owner"); goTo("owner-search"); }}>
-                <div style={{ fontSize:44, marginBottom:12 }}>🍽️</div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, marginBottom:8 }}>Restaurant Owner</div>
-                <div style={{ fontSize:12, color:C.muted, lineHeight:1.6, marginBottom:16 }}>Analyse reviews, fix issues, improve your rating</div>
-                <div style={{ background:`linear-gradient(135deg,${C.blue},${C.blue2})`, borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, color:"#fff" }}>I'm an Owner →</div>
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14,marginBottom:28}}>
+              <div className="role-btn" style={{background:C.blueDim,borderColor:C.blueBorder}} onClick={()=>{setRole("owner");goTo("owner-search");}}>
+                <div style={{fontSize:44,marginBottom:12}}>🍽️</div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,color:C.white,marginBottom:8}}>Restaurant Owner</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:16}}>Analyse reviews, fix issues, improve your rating</div>
+                <div style={{background:`linear-gradient(135deg,${C.blue},${C.blue2})`,borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,color:"#fff"}}>I'm an Owner →</div>
               </div>
-              <div className="role-btn" style={{ background:C.greenDim, borderColor:C.greenBorder }} onClick={() => { setRole("customer"); goTo("customer-search"); }}>
-                <div style={{ fontSize:44, marginBottom:12 }}>👥</div>
-                <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, marginBottom:8 }}>Customer</div>
-                <div style={{ fontSize:12, color:C.muted, lineHeight:1.6, marginBottom:16 }}>Find best dishes, nearby branches, avoid bad visits</div>
-                <div style={{ background:`linear-gradient(135deg,${C.green2},${C.green})`, borderRadius:10, padding:"10px", fontSize:13, fontWeight:800, color:C.black }}>I'm a Customer →</div>
+              <div className="role-btn" style={{background:C.greenDim,borderColor:C.greenBorder}} onClick={()=>{setRole("customer");goTo("customer-search");}}>
+                <div style={{fontSize:44,marginBottom:12}}>👥</div>
+                <div style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,color:C.white,marginBottom:8}}>Customer</div>
+                <div style={{fontSize:12,color:C.muted,lineHeight:1.6,marginBottom:16}}>Find best dishes, nearby branches, avoid bad visits</div>
+                <div style={{background:`linear-gradient(135deg,${C.green2},${C.green})`,borderRadius:10,padding:"10px",fontSize:13,fontWeight:800,color:C.black}}>I'm a Customer →</div>
               </div>
             </div>
             <Card>
               <Label>Or paste a Google Maps URL directly</Label>
               <Inp value={directUrl} onChange={setDirectUrl} placeholder="https://maps.google.com/maps/place/..."/>
-              {errorMsg && <div style={{ color:C.red, fontSize:13, marginBottom:10 }}>⚠️ {errorMsg}</div>}
-              <BtnPrimary onClick={handleDirectUrl}>{isLoading ? "⏳ Loading…" : "🔍 Analyse Now →"}</BtnPrimary>
+              {errorMsg&&<div style={{color:C.red,fontSize:13,marginBottom:10}}>⚠️ {errorMsg}</div>}
+              <BtnPrimary onClick={handleDirectUrl}>{isLoading?"⏳ Loading…":"🔍 Analyse Now →"}</BtnPrimary>
             </Card>
           </div>
         )}
 
-        {/* OWNER SEARCH */}
-        {screen === "owner-search" && (
+        {screen==="owner-search"&&(
           <div className="fade">
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
-              <BackBtn onClick={() => goTo("welcome")}/>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+              <BackBtn onClick={()=>goTo("welcome")}/>
               <RolePill role="owner"/>
             </div>
-            <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:C.white, marginBottom:6 }}>Analyse Your Restaurant</h2>
-            <p style={{ fontSize:13, color:C.muted, marginBottom:22, lineHeight:1.6 }}>See what your customers are really saying about you</p>
+            <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.white,marginBottom:6}}>Analyse Your Restaurant</h2>
+            <p style={{fontSize:13,color:C.muted,marginBottom:22,lineHeight:1.6}}>See what your customers are really saying about you</p>
             <Card>
               <Label>Restaurant name</Label>
               <Inp value={ownerName} onChange={setOwnerName} placeholder="e.g. Pizza Palace"/>
               <Label>Google Maps URL (recommended)</Label>
               <Inp value={ownerUrl} onChange={setOwnerUrl} placeholder="https://maps.google.com/maps/place/..."/>
-              {errorMsg && <div style={{ color:C.red, fontSize:13, marginBottom:10 }}>⚠️ {errorMsg}</div>}
-              {isLoading ? (
-                <div style={{ textAlign:"center", padding:"20px 0" }}>
-                  <div className="pulse" style={{ fontSize:32, marginBottom:10 }}>🤖</div>
-                  <p style={{ fontSize:13, color:C.muted, marginBottom:16 }}>{stage==="fetching"?"Fetching reviews from Google…":"Claude AI is analysing reviews…"}</p>
-                  <div style={{ background:C.black2, borderRadius:100, height:6, overflow:"hidden" }}>
-                    <div className="prog-bar" style={{ height:"100%", borderRadius:100, background:`linear-gradient(90deg,${C.blue},${C.green})`, width:`${progress}%` }}/>
+              {errorMsg&&<div style={{color:C.red,fontSize:13,marginBottom:10}}>⚠️ {errorMsg}</div>}
+              {isLoading?(
+                <div style={{textAlign:"center",padding:"20px 0"}}>
+                  <div className="pulse" style={{fontSize:32,marginBottom:10}}>🤖</div>
+                  <p style={{fontSize:13,color:C.muted,marginBottom:16}}>{stage==="fetching"?"Fetching reviews from Google…":"Claude AI is analysing reviews…"}</p>
+                  <div style={{background:C.black2,borderRadius:100,height:6,overflow:"hidden"}}>
+                    <div className="prog-bar" style={{height:"100%",borderRadius:100,background:`linear-gradient(90deg,${C.blue},${C.green})`,width:`${progress}%`}}/>
                   </div>
-                  <p style={{ fontSize:11, color:C.muted, marginTop:6 }}>{progress}%</p>
+                  <p style={{fontSize:11,color:C.muted,marginTop:6}}>{progress}%</p>
                 </div>
-              ) : (
+              ):(
                 <BtnPrimary onClick={handleOwnerAnalyse}>Analyse My Restaurant →</BtnPrimary>
               )}
             </Card>
-            <Card style={{ background:C.blueDim, border:`1px solid ${C.blueBorder}` }}>
-              <p style={{ fontSize:12, color:C.muted, lineHeight:1.6 }}>🔒 We only read public Google reviews. No login needed.</p>
+            <Card style={{background:C.blueDim,border:`1px solid ${C.blueBorder}`}}>
+              <p style={{fontSize:12,color:C.muted,lineHeight:1.6}}>🔒 We only read public Google reviews. No login needed.</p>
             </Card>
           </div>
         )}
 
-        {/* CUSTOMER SEARCH */}
-        {screen === "customer-search" && (
+        {screen==="customer-search"&&(
           <div className="fade">
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:20 }}>
-              <BackBtn onClick={() => goTo("welcome")}/>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:20}}>
+              <BackBtn onClick={()=>goTo("welcome")}/>
               <RolePill role="customer"/>
             </div>
-            <h2 style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:C.white, marginBottom:6 }}>Find a Restaurant</h2>
-            <p style={{ fontSize:13, color:C.muted, marginBottom:20, lineHeight:1.6 }}>Search by name, address, or find nearest branch of any chain</p>
-            <div style={{ display:"flex", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+            <h2 style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:C.white,marginBottom:6}}>Find a Restaurant</h2>
+            <p style={{fontSize:13,color:C.muted,marginBottom:20,lineHeight:1.6}}>Search by name, address, or find nearest branch of any chain</p>
+            <div style={{display:"flex",gap:8,marginBottom:14,flexWrap:"wrap"}}>
               {[{k:"gps",label:"📍 Near Me"},{k:"address",label:"🏠 Address"},{k:"city",label:"🔍 Name + City"}].map(t=>(
-                <button key={t.k} className={`tab-btn${searchMethod===t.k?" on":""}`} onClick={() => setSearchMethod(t.k)}>{t.label}</button>
+                <button key={t.k} className={`tab-btn${searchMethod===t.k?" on":""}`} onClick={()=>setSearchMethod(t.k)}>{t.label}</button>
               ))}
             </div>
             <Card>
               <Label>Restaurant name</Label>
               <Inp value={custName} onChange={setCustName} placeholder="e.g. McDonald's, Chick-fil-A, Subway"/>
-              {searchMethod === "address" && <>
-                <Label>Full address</Label>
-                <Inp value={custAddress} onChange={setCustAddress} placeholder="e.g. 1234 Main St, Austin TX 78701"/>
-              </>}
-              {searchMethod === "city" && <>
-                <Label>City or zip code</Label>
-                <Inp value={custCity} onChange={setCustCity} placeholder="e.g. Austin TX or 78701"/>
-              </>}
-              {searchMethod === "gps" && <p style={{ fontSize:12, color:C.muted, marginBottom:10 }}>📍 Browser will ask for location permission to find nearest branches.</p>}
-              {errorMsg && <div style={{ color:C.red, fontSize:13, marginBottom:10 }}>⚠️ {errorMsg}</div>}
+              {searchMethod==="address"&&<><Label>Full address</Label><Inp value={custAddress} onChange={setCustAddress} placeholder="e.g. 1234 Main St, Austin TX 78701"/></>}
+              {searchMethod==="city"&&<><Label>City or zip code</Label><Inp value={custCity} onChange={setCustCity} placeholder="e.g. Austin TX or 78701"/></>}
+              {searchMethod==="gps"&&<p style={{fontSize:12,color:C.muted,marginBottom:10}}>📍 Browser will ask for location permission.</p>}
+              {errorMsg&&<div style={{color:C.red,fontSize:13,marginBottom:10}}>⚠️ {errorMsg}</div>}
               {isLoading
-                ? <div style={{ textAlign:"center", padding:"16px 0" }}><div className="pulse" style={{ fontSize:28, marginBottom:8 }}>📡</div><p style={{ fontSize:13, color:C.muted }}>Searching nearby…</p></div>
-                : <BtnPrimary onClick={findBranches}>{searchMethod==="gps"?"📍 Find Nearest Branches →":"🔍 Search Branches →"}</BtnPrimary>
+                ?<div style={{textAlign:"center",padding:"16px 0"}}><div className="pulse" style={{fontSize:28,marginBottom:8}}>📡</div><p style={{fontSize:13,color:C.muted}}>Searching nearby…</p></div>
+                :<BtnPrimary onClick={findBranches}>{searchMethod==="gps"?"📍 Find Nearest Branches →":"🔍 Search Branches →"}</BtnPrimary>
               }
             </Card>
           </div>
         )}
 
-        {/* BRANCHES */}
-        {screen === "branches" && (
+        {screen==="branches"&&(
           <div className="fade">
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14 }}>
-              <BackBtn onClick={() => goTo("customer-search")}/>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14}}>
+              <BackBtn onClick={()=>goTo("customer-search")}/>
               <RolePill role="customer"/>
             </div>
-            <p style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:C.white, marginBottom:4 }}>{custName} near you</p>
-            <p style={{ fontSize:12, color:C.muted, marginBottom:16 }}>{branches.length} branches found — tap to analyse</p>
-            {branches.map((b, i) => {
-              const isGood = b.rating >= 4.2;
-              const isBad  = b.rating < 3.5;
-              const dotColor = isGood ? C.green : isBad ? C.red : C.blue2;
-              return (
-                <div key={b.placeId} className="hover-card" onClick={() => handleBranchSelect(b)}
-                  style={{ background: i===0 ? C.greenDim : C.black3, border:`1px solid ${i===0?C.greenBorder:C.border}`, borderRadius:14, padding:"14px 16px", marginBottom:10, cursor:"pointer" }}>
-                  <div style={{ display:"flex", alignItems:"flex-start", gap:10 }}>
-                    <div style={{ width:36, height:36, borderRadius:10, background:`${dotColor}18`, border:`1px solid ${dotColor}30`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16, flexShrink:0 }}>
+            <p style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:C.white,marginBottom:4}}>{custName} near you</p>
+            <p style={{fontSize:12,color:C.muted,marginBottom:16}}>{branches.length} branches found — tap to analyse</p>
+            {branches.map((b,i)=>{
+              const isGood=b.rating>=4.2;
+              const isBad=b.rating<3.5;
+              const dotColor=isGood?C.green:isBad?C.red:C.blue2;
+              return(
+                <div key={b.placeId} className="hover-card" onClick={()=>handleBranchSelect(b)}
+                  style={{background:i===0?C.greenDim:C.black3,border:`1px solid ${i===0?C.greenBorder:C.border}`,borderRadius:14,padding:"14px 16px",marginBottom:10,cursor:"pointer"}}>
+                  <div style={{display:"flex",alignItems:"flex-start",gap:10}}>
+                    <div style={{width:36,height:36,borderRadius:10,background:`${dotColor}18`,border:`1px solid ${dotColor}30`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>
                       {isGood?"🟢":isBad?"🔴":"🔵"}
                     </div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ display:"flex", alignItems:"center", gap:6, flexWrap:"wrap", marginBottom:4 }}>
-                        <span style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:800, color:C.white }}>{b.address}</span>
-                        {i===0 && <span style={{ background:C.greenDim, border:`1px solid ${C.greenBorder}`, color:C.green, fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:100 }}>BEST</span>}
-                        {isBad && <span style={{ background:C.redDim, border:`1px solid ${C.redBorder}`, color:C.red, fontSize:9, fontWeight:700, padding:"2px 8px", borderRadius:100 }}>AVOID</span>}
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",gap:6,flexWrap:"wrap",marginBottom:4}}>
+                        <span style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:800,color:C.white}}>{b.address}</span>
+                        {i===0&&<span style={{background:C.greenDim,border:`1px solid ${C.greenBorder}`,color:C.green,fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:100}}>BEST</span>}
+                        {isBad&&<span style={{background:C.redDim,border:`1px solid ${C.redBorder}`,color:C.red,fontSize:9,fontWeight:700,padding:"2px 8px",borderRadius:100}}>AVOID</span>}
                       </div>
-                      <div style={{ display:"flex", gap:12, fontSize:11, flexWrap:"wrap" }}>
-                        <span style={{ color:C.green, fontWeight:700 }}>⭐ {b.rating}</span>
-                        {b.distance && <span style={{ color:C.muted }}>📍 {b.distance} mi</span>}
-                        <span style={{ color:C.muted }}>{b.reviews} reviews</span>
-                        {b.open===true && <span style={{ color:C.green, fontWeight:700 }}>🟢 Open now</span>}
-                        {b.open===false && <span style={{ color:C.red }}>🔴 Closed</span>}
+                      <div style={{display:"flex",gap:12,fontSize:11,flexWrap:"wrap"}}>
+                        <span style={{color:C.green,fontWeight:700}}>⭐ {b.rating}</span>
+                        {b.distance&&<span style={{color:C.muted}}>📍 {b.distance} mi</span>}
+                        <span style={{color:C.muted}}>{b.reviews} reviews</span>
+                        {b.open===true&&<span style={{color:C.green,fontWeight:700}}>🟢 Open now</span>}
+                        {b.open===false&&<span style={{color:C.red}}>🔴 Closed</span>}
                       </div>
                     </div>
-                    <span style={{ color:C.muted, fontSize:18 }}>›</span>
+                    <span style={{color:C.muted,fontSize:18}}>›</span>
                   </div>
                 </div>
               );
@@ -539,53 +511,52 @@ export default function App() {
           </div>
         )}
 
-        {/* OWNER DASHBOARD */}
-        {screen === "owner-dash" && (
+        {screen==="owner-dash"&&(
           <div className="fade">
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
-              <BackBtn onClick={() => goTo("owner-search")}/>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+              <BackBtn onClick={()=>goTo("owner-search")}/>
               <RolePill role="owner"/>
-              <button className="btn-ghost" style={{ marginLeft:"auto", fontSize:12, padding:"6px 14px" }} onClick={() => goTo("all-tabs")}>All Tabs →</button>
+              <button className="btn-ghost" style={{marginLeft:"auto",fontSize:12,padding:"6px 14px"}} onClick={()=>goTo("all-tabs")}>All Tabs →</button>
             </div>
-            {isLoading && (
-              <Card style={{ textAlign:"center", padding:32 }}>
-                <div className="pulse" style={{ fontSize:44, marginBottom:14 }}>{stage==="fetching"?"📡":"🤖"}</div>
-                <p style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:6 }}>{stage==="fetching"?"Fetching Google reviews…":"Claude AI is analysing…"}</p>
-                <p style={{ fontSize:13, color:C.muted, marginBottom:20 }}>This takes about 20–30 seconds</p>
-                <div style={{ background:C.black2, borderRadius:100, height:8, overflow:"hidden", maxWidth:360, margin:"0 auto" }}>
-                  <div className="prog-bar" style={{ height:"100%", borderRadius:100, background:`linear-gradient(90deg,${C.blue},${C.green})`, width:`${progress}%` }}/>
+            {isLoading&&(
+              <Card style={{textAlign:"center",padding:32}}>
+                <div className="pulse" style={{fontSize:44,marginBottom:14}}>{stage==="fetching"?"📡":"🤖"}</div>
+                <p style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,marginBottom:6}}>{stage==="fetching"?"Fetching Google reviews…":"Claude AI is analysing…"}</p>
+                <p style={{fontSize:13,color:C.muted,marginBottom:20}}>This takes about 20–30 seconds</p>
+                <div style={{background:C.black2,borderRadius:100,height:8,overflow:"hidden",maxWidth:360,margin:"0 auto"}}>
+                  <div className="prog-bar" style={{height:"100%",borderRadius:100,background:`linear-gradient(90deg,${C.blue},${C.green})`,width:`${progress}%`}}/>
                 </div>
-                <p style={{ fontSize:12, color:C.muted, marginTop:8 }}>{progress}%</p>
+                <p style={{fontSize:12,color:C.muted,marginTop:8}}>{progress}%</p>
               </Card>
             )}
-            {!isLoading && analysis && restaurant && (
+            {!isLoading&&analysis&&restaurant&&(
               <>
-                <div style={{ display:"flex", alignItems:"center", gap:12, background:C.black3, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:14 }}>
-                  <div style={{ width:46, height:46, borderRadius:12, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>🍽️</div>
-                  <div style={{ flex:1 }}>
-                    <p style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:C.white, margin:"0 0 2px" }}>{restaurant.name}</p>
-                    <p style={{ fontSize:11, color:C.muted, margin:0 }}>{restaurant.address}</p>
+                <div style={{display:"flex",alignItems:"center",gap:12,background:C.black3,border:`1px solid ${C.border}`,borderRadius:14,padding:14,marginBottom:14}}>
+                  <div style={{width:46,height:46,borderRadius:12,background:`linear-gradient(135deg,${C.blue},${C.green})`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>🍽️</div>
+                  <div style={{flex:1}}>
+                    <p style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,color:C.white,margin:"0 0 2px"}}>{restaurant.name}</p>
+                    <p style={{fontSize:11,color:C.muted,margin:0}}>{restaurant.address}</p>
                   </div>
-                  <div style={{ textAlign:"center", flexShrink:0 }}>
-                    <div style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:healthColor(hScore) }}>{hScore}</div>
-                    <div style={{ fontSize:9, color:C.muted }}>Health %</div>
+                  <div style={{textAlign:"center",flexShrink:0}}>
+                    <div style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:healthColor(hScore)}}>{hScore}</div>
+                    <div style={{fontSize:9,color:C.muted}}>Health %</div>
                   </div>
                 </div>
                 <Card>
-                  <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:8 }}>
-                    <div style={{ flex:1, background:C.black2, borderRadius:100, height:10, overflow:"hidden" }}>
-                      <div className="prog-bar" style={{ height:"100%", borderRadius:100, width:`${hScore}%`, background:`linear-gradient(90deg,${C.blue},${C.green})` }}/>
+                  <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:8}}>
+                    <div style={{flex:1,background:C.black2,borderRadius:100,height:10,overflow:"hidden"}}>
+                      <div className="prog-bar" style={{height:"100%",borderRadius:100,width:`${hScore}%`,background:`linear-gradient(90deg,${C.blue},${C.green})`}}/>
                     </div>
-                    <span style={{ fontFamily:"'Syne',sans-serif", fontSize:22, fontWeight:800, color:healthColor(hScore), flexShrink:0 }}>{hScore}%</span>
+                    <span style={{fontFamily:"'Syne',sans-serif",fontSize:22,fontWeight:800,color:healthColor(hScore),flexShrink:0}}>{hScore}%</span>
                   </div>
-                  <p style={{ fontSize:12, color:C.muted }}>{hScore>70?"Great health! Keep doing what's working.":hScore>40?"Room for improvement — key issues identified.":"Urgent action needed — serious complaints found."}</p>
+                  <p style={{fontSize:12,color:C.muted}}>{hScore>70?"Great health! Keep doing what's working.":hScore>40?"Room for improvement.":"Urgent action needed."}</p>
                 </Card>
-                <Card style={{ borderLeft:`3px solid ${C.blue}` }}>
+                <Card style={{borderLeft:`3px solid ${C.blue}`}}>
                   <Label>AI Conclusion for You</Label>
-                  <p style={{ fontSize:13, color:C.muted, lineHeight:1.7, marginBottom:12 }}>{analysis.forOwner?.conclusion}</p>
-                  <div style={{ background:C.redDim, border:`1px solid ${C.redBorder}`, borderRadius:10, padding:"10px 14px" }}>
-                    <p style={{ fontSize:10, fontWeight:700, color:C.red, marginBottom:4, textTransform:"uppercase", letterSpacing:"0.5px" }}>Urgent Action</p>
-                    <p style={{ fontSize:13, color:C.muted, margin:0 }}>{analysis.forOwner?.urgentAction}</p>
+                  <p style={{fontSize:13,color:C.muted,lineHeight:1.7,marginBottom:12}}>{analysis.forOwner?.conclusion}</p>
+                  <div style={{background:C.redDim,border:`1px solid ${C.redBorder}`,borderRadius:10,padding:"10px 14px"}}>
+                    <p style={{fontSize:10,fontWeight:700,color:C.red,marginBottom:4,textTransform:"uppercase",letterSpacing:"0.5px"}}>Urgent Action</p>
+                    <p style={{fontSize:13,color:C.muted,margin:0}}>{analysis.forOwner?.urgentAction}</p>
                   </div>
                 </Card>
                 <Label>Top Complaints</Label>
@@ -593,63 +564,63 @@ export default function App() {
                   {(analysis.topComplaints||[]).map((c,i)=>(
                     <ComplaintBar key={i} label={c.issue} count={c.count} total={analysis.totalAnalysed} color={c.severity==="high"?C.red:c.severity==="medium"?C.blue2:C.muted}/>
                   ))}
+                  {analysis.topComplaints?.length===0&&<p style={{fontSize:13,color:C.muted}}>No major complaints found ✅</p>}
                 </Card>
                 <Label>How to Improve</Label>
                 {(analysis.forOwner?.improvements||[]).map((imp,i)=><ImprovRow key={i} n={i+1} text={imp}/>)}
-                {analysis.fakeReviewCount > 0 && (
-                  <Card style={{ background:"rgba(255,217,61,0.06)", border:"1px solid rgba(255,217,61,0.2)" }}>
-                    <p style={{ fontSize:13, fontWeight:700, color:"#ffd93d", marginBottom:4 }}>🤖 {analysis.fakeReviewCount} Suspicious Reviews</p>
-                    <p style={{ fontSize:12, color:C.muted }}>{analysis.fakeReviewReason}</p>
+                {analysis.fakeReviewCount>0&&(
+                  <Card style={{background:"rgba(255,217,61,0.06)",border:"1px solid rgba(255,217,61,0.2)"}}>
+                    <p style={{fontSize:13,fontWeight:700,color:"#ffd93d",marginBottom:4}}>🤖 {analysis.fakeReviewCount} Suspicious Reviews</p>
+                    <p style={{fontSize:12,color:C.muted}}>{analysis.fakeReviewReason}</p>
                   </Card>
                 )}
-                <button className="btn-ghost" style={{ width:"100%", marginTop:6, padding:"12px" }} onClick={() => goTo("all-tabs")}>
+                <button className="btn-ghost" style={{width:"100%",marginTop:6,padding:"12px"}} onClick={()=>goTo("all-tabs")}>
                   View All Tabs — Food Guide, Hygiene, Accessibility →
                 </button>
                 <EmailSection analysis={analysis} restaurant={restaurant} showToast={showToast}/>
               </>
             )}
-            {!isLoading && errorMsg && <Card style={{ border:`1px solid ${C.redBorder}` }}><p style={{ color:C.red, fontSize:13 }}>⚠️ {errorMsg}</p></Card>}
+            {!isLoading&&errorMsg&&<Card style={{border:`1px solid ${C.redBorder}`}}><p style={{color:C.red,fontSize:13}}>⚠️ {errorMsg}</p></Card>}
           </div>
         )}
 
-        {/* CUSTOMER DASHBOARD */}
-        {screen === "customer-dash" && (
+        {screen==="customer-dash"&&(
           <div className="fade">
-            <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:14, flexWrap:"wrap" }}>
-              <BackBtn onClick={() => goTo("branches")}/>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:14,flexWrap:"wrap"}}>
+              <BackBtn onClick={()=>goTo("branches")}/>
               <RolePill role="customer"/>
-              <button className="btn-ghost" style={{ marginLeft:"auto", fontSize:12, padding:"6px 14px" }} onClick={() => goTo("all-tabs")}>All Tabs →</button>
+              <button className="btn-ghost" style={{marginLeft:"auto",fontSize:12,padding:"6px 14px"}} onClick={()=>goTo("all-tabs")}>All Tabs →</button>
             </div>
-            {isLoading && (
-              <Card style={{ textAlign:"center", padding:32 }}>
-                <div className="pulse" style={{ fontSize:44, marginBottom:14 }}>{stage==="fetching"?"📡":"🤖"}</div>
-                <p style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:700, marginBottom:6 }}>{stage==="fetching"?"Fetching reviews…":"Analysing with AI…"}</p>
-                <div style={{ background:C.black2, borderRadius:100, height:8, overflow:"hidden", maxWidth:360, margin:"16px auto 0" }}>
-                  <div className="prog-bar" style={{ height:"100%", borderRadius:100, background:`linear-gradient(90deg,${C.blue},${C.green})`, width:`${progress}%` }}/>
+            {isLoading&&(
+              <Card style={{textAlign:"center",padding:32}}>
+                <div className="pulse" style={{fontSize:44,marginBottom:14}}>{stage==="fetching"?"📡":"🤖"}</div>
+                <p style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:700,marginBottom:6}}>{stage==="fetching"?"Fetching reviews…":"Analysing with AI…"}</p>
+                <div style={{background:C.black2,borderRadius:100,height:8,overflow:"hidden",maxWidth:360,margin:"16px auto 0"}}>
+                  <div className="prog-bar" style={{height:"100%",borderRadius:100,background:`linear-gradient(90deg,${C.blue},${C.green})`,width:`${progress}%`}}/>
                 </div>
-                <p style={{ fontSize:12, color:C.muted, marginTop:8 }}>{progress}%</p>
+                <p style={{fontSize:12,color:C.muted,marginTop:8}}>{progress}%</p>
               </Card>
             )}
-            {!isLoading && analysis && restaurant && (() => {
-              const v = VERDICT[analysis.forCustomer?.verdict] || VERDICT.mixed;
-              return (
+            {!isLoading&&analysis&&restaurant&&(()=>{
+              const v=VERDICT[analysis.forCustomer?.verdict]||VERDICT.mixed;
+              return(
                 <>
-                  <div style={{ display:"flex", alignItems:"center", gap:14, background:v.bg, border:`1px solid ${v.border}`, borderRadius:16, padding:16, marginBottom:16 }}>
-                    <div style={{ fontSize:34, flexShrink:0 }}>{v.icon}</div>
-                    <div style={{ flex:1 }}>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:18, fontWeight:800, color:v.color, marginBottom:4 }}>{v.label}</div>
-                      <div style={{ fontSize:12, color:C.muted }}>{restaurant.name}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:14,background:v.bg,border:`1px solid ${v.border}`,borderRadius:16,padding:16,marginBottom:16}}>
+                    <div style={{fontSize:34,flexShrink:0}}>{v.icon}</div>
+                    <div style={{flex:1}}>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontSize:18,fontWeight:800,color:v.color,marginBottom:4}}>{v.label}</div>
+                      <div style={{fontSize:12,color:C.muted}}>{restaurant.name}</div>
                     </div>
-                    <div style={{ textAlign:"center", flexShrink:0 }}>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:20, fontWeight:800, color:C.white }}>{restaurant.rating}</div>
-                      <div style={{ fontSize:9, color:C.muted }}>⭐ Google</div>
+                    <div style={{textAlign:"center",flexShrink:0}}>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontSize:20,fontWeight:800,color:C.white}}>{restaurant.rating}</div>
+                      <div style={{fontSize:9,color:C.muted}}>⭐ Google</div>
                     </div>
                   </div>
-                  <Card style={{ borderLeft:`3px solid ${C.green}` }}>
+                  <Card style={{borderLeft:`3px solid ${C.green}`}}>
                     <Label>AI Summary for You</Label>
-                    <p style={{ fontSize:13, color:C.muted, lineHeight:1.7 }}>{analysis.forCustomer?.conclusion}</p>
+                    <p style={{fontSize:13,color:C.muted,lineHeight:1.7}}>{analysis.forCustomer?.conclusion}</p>
                   </Card>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14 }}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:14}}>
                     <InfoCard icon="🍽️" label="Must Order" value={analysis.forCustomer?.mustTry} sub={analysis.priceRange?.avgMealForOne?`Avg ${analysis.priceRange.avgMealForOne}/person`:null} color={C.green}/>
                     <InfoCard icon="🚫" label="Avoid" value={analysis.forCustomer?.avoid} color={C.red}/>
                     <InfoCard icon="🕐" label="Best Time" value={analysis.bestTimeToVisit} color={C.blue2}/>
@@ -659,67 +630,72 @@ export default function App() {
                     <InfoCard icon="🪑" label="Kids Chairs" value={bool2label(analysis.accessibility?.kidsChairs?.available,"✅ Available","❌ No")} color={C.green}/>
                     <InfoCard icon="📶" label="WiFi" value={bool2label(analysis.accessibility?.wifi?.available,"✅ Free","❌ No WiFi")} color={C.green}/>
                   </div>
-                  <button className="btn-ghost" style={{ width:"100%", padding:"12px" }} onClick={() => goTo("all-tabs")}>
+                  <button className="btn-ghost" style={{width:"100%",padding:"12px"}} onClick={()=>goTo("all-tabs")}>
                     View Full Details — Food Guide, Prices, Hygiene →
                   </button>
                 </>
               );
             })()}
-            {!isLoading && errorMsg && <Card style={{ border:`1px solid ${C.redBorder}` }}><p style={{ color:C.red, fontSize:13 }}>⚠️ {errorMsg}</p></Card>}
+            {!isLoading&&errorMsg&&<Card style={{border:`1px solid ${C.redBorder}`}}><p style={{color:C.red,fontSize:13}}>⚠️ {errorMsg}</p></Card>}
           </div>
         )}
 
-        {/* ALL TABS */}
-        {screen === "all-tabs" && analysis && restaurant && (
+        {screen==="all-tabs"&&analysis&&restaurant&&(
           <div className="fade">
-            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14, flexWrap:"wrap" }}>
+            <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:14,flexWrap:"wrap"}}>
               <BackBtn onClick={goBack}/>
               <RolePill role={role}/>
-              <button className="btn-ghost" style={{ marginLeft:"auto", fontSize:12, padding:"6px 14px" }} onClick={() => setScreen("welcome")}>Switch Role</button>
+              <button className="btn-ghost" style={{marginLeft:"auto",fontSize:12,padding:"6px 14px"}} onClick={()=>setScreen("welcome")}>Switch Role</button>
             </div>
-            <div style={{ display:"flex", alignItems:"center", gap:10, background:C.black3, border:`1px solid ${C.border}`, borderRadius:12, padding:"10px 14px", marginBottom:14 }}>
-              <span style={{ fontFamily:"'Syne',sans-serif", fontSize:14, fontWeight:800, color:C.white }}>{restaurant.name}</span>
-              <span style={{ fontSize:11, color:C.muted }}>· {restaurant.rating} ⭐ ·</span>
-              <span style={{ fontSize:11, color:healthColor(hScore), fontWeight:700 }}>Health {hScore}%</span>
-              <button className="btn-ghost" style={{ marginLeft:"auto", fontSize:11, padding:"4px 12px" }} onClick={downloadReport}>📥 Download</button>
+            <div style={{display:"flex",alignItems:"center",gap:10,background:C.black3,border:`1px solid ${C.border}`,borderRadius:12,padding:"10px 14px",marginBottom:14}}>
+              <span style={{fontFamily:"'Syne',sans-serif",fontSize:14,fontWeight:800,color:C.white}}>{restaurant.name}</span>
+              <span style={{fontSize:11,color:C.muted}}>· {restaurant.rating} ⭐ ·</span>
+              <span style={{fontSize:11,color:healthColor(hScore),fontWeight:700}}>Health {hScore}%</span>
+              <button className="btn-ghost" style={{marginLeft:"auto",fontSize:11,padding:"4px 12px"}} onClick={downloadReport}>📥 Download</button>
             </div>
-            <div style={{ display:"flex", gap:6, marginBottom:16, flexWrap:"wrap" }}>
+            <div style={{display:"flex",gap:6,marginBottom:16,flexWrap:"wrap"}}>
               {[{k:"owner",label:"🍽️ Owner"},{k:"customer",label:"👥 Customer"},{k:"food",label:"🍔 Food"},{k:"access",label:"♿ Access"},{k:"hygiene",label:"🧹 Hygiene"},{k:"email",label:"📧 Alerts"}].map(t=>(
                 <button key={t.k} className={`tab-btn${activeTab===t.k?" on":""}`} onClick={()=>setActiveTab(t.k)}>{t.label}</button>
               ))}
             </div>
 
-            {activeTab === "owner" && (
+            {activeTab==="owner"&&(
               <div className="fade">
-                <Card style={{ borderLeft:`3px solid ${C.blue}` }}>
+                <Card style={{borderLeft:`3px solid ${C.blue}`}}>
                   <Label>AI Conclusion</Label>
-                  <p style={{ fontSize:13, color:C.muted, lineHeight:1.7, marginBottom:12 }}>{analysis.forOwner?.conclusion}</p>
-                  <div style={{ background:C.redDim, border:`1px solid ${C.redBorder}`, borderRadius:10, padding:"10px 14px" }}>
-                    <p style={{ fontSize:10, fontWeight:700, color:C.red, marginBottom:4, textTransform:"uppercase" }}>Urgent Action</p>
-                    <p style={{ fontSize:13, color:C.muted, margin:0 }}>{analysis.forOwner?.urgentAction}</p>
+                  <p style={{fontSize:13,color:C.muted,lineHeight:1.7,marginBottom:12}}>{analysis.forOwner?.conclusion}</p>
+                  <div style={{background:C.redDim,border:`1px solid ${C.redBorder}`,borderRadius:10,padding:"10px 14px"}}>
+                    <p style={{fontSize:10,fontWeight:700,color:C.red,marginBottom:4,textTransform:"uppercase"}}>Urgent Action</p>
+                    <p style={{fontSize:13,color:C.muted,margin:0}}>{analysis.forOwner?.urgentAction}</p>
                   </div>
                 </Card>
                 <Label>Top Complaints</Label>
-                <Card>{(analysis.topComplaints||[]).map((c,i)=><ComplaintBar key={i} label={c.issue} count={c.count} total={analysis.totalAnalysed} color={c.severity==="high"?C.red:c.severity==="medium"?C.blue2:C.muted}/>)}</Card>
+                <Card>
+                  {(analysis.topComplaints||[]).map((c,i)=><ComplaintBar key={i} label={c.issue} count={c.count} total={analysis.totalAnalysed} color={c.severity==="high"?C.red:c.severity==="medium"?C.blue2:C.muted}/>)}
+                  {analysis.topComplaints?.length===0&&<p style={{fontSize:13,color:C.muted}}>No major complaints ✅</p>}
+                </Card>
                 <Label>Top Praises</Label>
-                <Card>{(analysis.topPraises||[]).map((p,i)=><ComplaintBar key={i} label={p.aspect} count={p.count} total={analysis.totalAnalysed} color={C.green}/>)}</Card>
+                <Card>
+                  {(analysis.topPraises||[]).map((p,i)=><ComplaintBar key={i} label={p.aspect} count={p.count} total={analysis.totalAnalysed} color={C.green}/>)}
+                  {analysis.topPraises?.length===0&&<p style={{fontSize:13,color:C.muted}}>No specific praises detected</p>}
+                </Card>
                 <Label>Improvements</Label>
                 {(analysis.forOwner?.improvements||[]).map((imp,i)=><ImprovRow key={i} n={i+1} text={imp}/>)}
               </div>
             )}
 
-            {activeTab === "customer" && (() => {
-              const v = VERDICT[analysis.forCustomer?.verdict]||VERDICT.mixed;
-              return (
+            {activeTab==="customer"&&(()=>{
+              const v=VERDICT[analysis.forCustomer?.verdict]||VERDICT.mixed;
+              return(
                 <div className="fade">
-                  <div style={{ display:"flex", alignItems:"center", gap:12, background:v.bg, border:`1px solid ${v.border}`, borderRadius:14, padding:14, marginBottom:12 }}>
-                    <div style={{ fontSize:28 }}>{v.icon}</div>
+                  <div style={{display:"flex",alignItems:"center",gap:12,background:v.bg,border:`1px solid ${v.border}`,borderRadius:14,padding:14,marginBottom:12}}>
+                    <div style={{fontSize:28}}>{v.icon}</div>
                     <div>
-                      <div style={{ fontFamily:"'Syne',sans-serif", fontSize:16, fontWeight:800, color:v.color }}>{v.label}</div>
-                      <div style={{ fontSize:12, color:C.muted, marginTop:3 }}>{analysis.forCustomer?.conclusion}</div>
+                      <div style={{fontFamily:"'Syne',sans-serif",fontSize:16,fontWeight:800,color:v.color}}>{v.label}</div>
+                      <div style={{fontSize:12,color:C.muted,marginTop:3}}>{analysis.forCustomer?.conclusion}</div>
                     </div>
                   </div>
-                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                     <InfoCard icon="🍽️" label="Must Try" value={analysis.forCustomer?.mustTry} color={C.green}/>
                     <InfoCard icon="🚫" label="Avoid" value={analysis.forCustomer?.avoid} color={C.red}/>
                     <InfoCard icon="🕐" label="Best Time" value={analysis.bestTimeToVisit} color={C.blue2}/>
@@ -729,43 +705,45 @@ export default function App() {
               );
             })()}
 
-            {activeTab === "food" && (
+            {activeTab==="food"&&(
               <div className="fade">
                 <Label>Best Dishes</Label>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
                   {(analysis.bestDishes||[]).map((d,i)=>(
-                    <span key={i} style={{ background:C.greenDim, border:`1px solid ${C.greenBorder}`, color:C.green, fontSize:12, fontWeight:700, padding:"5px 14px", borderRadius:100 }}>
+                    <span key={i} style={{background:C.greenDim,border:`1px solid ${C.greenBorder}`,color:C.green,fontSize:12,fontWeight:700,padding:"5px 14px",borderRadius:100}}>
                       {"🥇🥈🥉"[i]||"✅"} {d}
                     </span>
                   ))}
+                  {analysis.bestDishes?.length===0&&<p style={{fontSize:13,color:C.muted}}>No specific dishes mentioned</p>}
                 </div>
                 <Label>Dishes to Avoid</Label>
-                <div style={{ display:"flex", flexWrap:"wrap", gap:8, marginBottom:14 }}>
+                <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:14}}>
                   {(analysis.dishesToAvoid||[]).map((d,i)=>(
-                    <span key={i} style={{ background:C.redDim, border:`1px solid ${C.redBorder}`, color:C.red, fontSize:12, fontWeight:700, padding:"5px 14px", borderRadius:100 }}>❌ {d}</span>
+                    <span key={i} style={{background:C.redDim,border:`1px solid ${C.redBorder}`,color:C.red,fontSize:12,fontWeight:700,padding:"5px 14px",borderRadius:100}}>❌ {d}</span>
                   ))}
+                  {analysis.dishesToAvoid?.length===0&&<p style={{fontSize:13,color:C.muted}}>No dishes flagged ✅</p>}
                 </div>
                 <Label>Price Guide</Label>
                 <Card>
-                  <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
-                    <span style={{ fontSize:13, color:C.muted }}>Avg meal — 1 person</span>
-                    <span style={{ fontSize:14, fontWeight:700, color:C.green }}>{analysis.priceRange?.avgMealForOne||"—"}</span>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <span style={{fontSize:13,color:C.muted}}>Avg meal — 1 person</span>
+                    <span style={{fontSize:14,fontWeight:700,color:C.green}}>{analysis.priceRange?.avgMealForOne||"—"}</span>
                   </div>
-                  <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${C.border}` }}>
-                    <span style={{ fontSize:13, color:C.muted }}>Avg meal — 2 people</span>
-                    <span style={{ fontSize:14, fontWeight:700, color:C.green }}>{analysis.priceRange?.avgMealForTwo||"—"}</span>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0",borderBottom:`1px solid ${C.border}`}}>
+                    <span style={{fontSize:13,color:C.muted}}>Avg meal — 2 people</span>
+                    <span style={{fontSize:14,fontWeight:700,color:C.green}}>{analysis.priceRange?.avgMealForTwo||"—"}</span>
                   </div>
-                  <div style={{ display:"flex", justifyContent:"space-between", padding:"8px 0" }}>
-                    <span style={{ fontSize:13, color:C.muted }}>Value for money</span>
-                    <span style={{ fontSize:14, fontWeight:700, color:C.blue2 }}>{"⭐".repeat(Math.round(analysis.priceRange?.valueRating||3))} {analysis.priceRange?.valueLabel}</span>
+                  <div style={{display:"flex",justifyContent:"space-between",padding:"8px 0"}}>
+                    <span style={{fontSize:13,color:C.muted}}>Value for money</span>
+                    <span style={{fontSize:14,fontWeight:700,color:C.blue2}}>{"⭐".repeat(Math.round(analysis.priceRange?.valueRating||3))} {analysis.priceRange?.valueLabel}</span>
                   </div>
                 </Card>
               </div>
             )}
 
-            {activeTab === "access" && (
+            {activeTab==="access"&&(
               <div className="fade">
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                   <InfoCard icon="🅿️" label="Parking" value={bool2label(analysis.accessibility?.parking?.available,"✅ Available","❌ Not mentioned")} sub={analysis.accessibility?.parking?.detail} color={C.green}/>
                   <InfoCard icon="♿" label="Wheelchair" value={bool2label(analysis.accessibility?.wheelchair?.accessible,"✅ Accessible","❌ Not confirmed")} sub={analysis.accessibility?.wheelchair?.detail} color={C.blue2}/>
                   <InfoCard icon="🪑" label="Kids Chairs" value={bool2label(analysis.accessibility?.kidsChairs?.available,"✅ Available","❌ Not mentioned")} color={C.green}/>
@@ -776,37 +754,37 @@ export default function App() {
               </div>
             )}
 
-            {activeTab === "hygiene" && (
+            {activeTab==="hygiene"&&(
               <div className="fade">
-                <Card style={{ textAlign:"center", marginBottom:14 }}>
-                  <div style={{ fontFamily:"'Syne',sans-serif", fontSize:52, fontWeight:800, color:healthColor((analysis.hygiene?.score||0)*10) }}>
-                    {analysis.hygiene?.score}<span style={{ fontSize:22, color:C.muted }}>/10</span>
+                <Card style={{textAlign:"center",marginBottom:14}}>
+                  <div style={{fontFamily:"'Syne',sans-serif",fontSize:52,fontWeight:800,color:healthColor((analysis.hygiene?.score||0)*10)}}>
+                    {analysis.hygiene?.score||"—"}<span style={{fontSize:22,color:C.muted}}>/10</span>
                   </div>
-                  <div style={{ fontSize:14, color:C.muted, marginBottom:14 }}>{analysis.hygiene?.label}</div>
-                  <div style={{ background:C.black2, borderRadius:100, height:8, overflow:"hidden", maxWidth:240, margin:"0 auto" }}>
-                    <div style={{ height:"100%", borderRadius:100, width:`${(analysis.hygiene?.score||0)*10}%`, background:`linear-gradient(90deg,${C.blue},${C.green})`, transition:"width 1s ease" }}/>
+                  <div style={{fontSize:14,color:C.muted,marginBottom:14}}>{analysis.hygiene?.label||"—"}</div>
+                  <div style={{background:C.black2,borderRadius:100,height:8,overflow:"hidden",maxWidth:240,margin:"0 auto"}}>
+                    <div style={{height:"100%",borderRadius:100,width:`${(analysis.hygiene?.score||0)*10}%`,background:`linear-gradient(90deg,${C.blue},${C.green})`,transition:"width 1s ease"}}/>
                   </div>
                 </Card>
-                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12 }}>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10,marginBottom:12}}>
                   {[{label:"Kitchen",val:analysis.hygiene?.kitchen},{label:"Tables",val:analysis.hygiene?.tables},{label:"Restrooms",val:analysis.hygiene?.restrooms},{label:"Staff",val:analysis.hygiene?.staff}].map((h,i)=>(
-                    <div key={i} style={{ borderRadius:12, padding:"12px 14px",
-                      background: ["Clean","Professional","Excellent","Good"].includes(h.val) ? C.greenDim : ["Mixed","Fair"].includes(h.val) ? C.blueDim : C.redDim,
-                      border: `1px solid ${["Clean","Professional","Excellent","Good"].includes(h.val) ? C.greenBorder : ["Mixed","Fair"].includes(h.val) ? C.blueBorder : C.redBorder}` }}>
-                      <div style={{ fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:4, color:C.muted }}>{h.label}</div>
-                      <div style={{ fontSize:14, fontWeight:700, color:C.white }}>{h.val||"—"}</div>
+                    <div key={i} style={{borderRadius:12,padding:"12px 14px",
+                      background:["Clean","Professional","Excellent","Good"].includes(h.val)?C.greenDim:["Mixed","Fair"].includes(h.val)?C.blueDim:C.redDim,
+                      border:`1px solid ${["Clean","Professional","Excellent","Good"].includes(h.val)?C.greenBorder:["Mixed","Fair"].includes(h.val)?C.blueBorder:C.redBorder}`}}>
+                      <div style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:"0.5px",marginBottom:4,color:C.muted}}>{h.label}</div>
+                      <div style={{fontSize:14,fontWeight:700,color:C.white}}>{h.val||"—"}</div>
                     </div>
                   ))}
                 </div>
-                {analysis.hygiene?.ownerAlert && (
-                  <Card style={{ background:C.redDim, border:`1px solid ${C.redBorder}` }}>
-                    <p style={{ fontSize:10, fontWeight:700, color:C.red, textTransform:"uppercase", marginBottom:6 }}>Owner Alert</p>
-                    <p style={{ fontSize:13, color:C.muted }}>{analysis.hygiene.ownerAlert}</p>
+                {analysis.hygiene?.ownerAlert&&(
+                  <Card style={{background:C.redDim,border:`1px solid ${C.redBorder}`}}>
+                    <p style={{fontSize:10,fontWeight:700,color:C.red,textTransform:"uppercase",marginBottom:6}}>Owner Alert</p>
+                    <p style={{fontSize:13,color:C.muted}}>{analysis.hygiene.ownerAlert}</p>
                   </Card>
                 )}
               </div>
             )}
 
-            {activeTab === "email" && (
+            {activeTab==="email"&&(
               <div className="fade">
                 <EmailSection analysis={analysis} restaurant={restaurant} showToast={showToast}/>
               </div>

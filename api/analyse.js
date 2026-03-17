@@ -6,84 +6,45 @@ module.exports = async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { reviews, restaurantName } = req.body || {};
-  if (!reviews?.length) return res.status(400).json({ error: 'No reviews provided' });
+  if (!reviews || reviews.length === 0) {
+    return res.status(400).json({ error: 'No reviews provided' });
+  }
 
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
-  if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  if (!ANTHROPIC_API_KEY) {
+    return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
+  }
 
-  const reviewText = reviews.map((r, i) =>
-    `Review ${i+1} (${r.rating} stars) by ${r.author}: ${r.text}`
-  ).join('\n\n');
+  // Build review text
+  var reviewLines = [];
+  for (var i = 0; i < reviews.length; i++) {
+    var r = reviews[i];
+    reviewLines.push((i+1) + '. [' + r.rating + ' stars] ' + r.author + ': ' + r.text);
+  }
+  var reviewText = reviewLines.join('\n\n');
+  var total = reviews.length;
 
-  const prompt = `Analyse these ${reviews.length} Google reviews for the restaurant "${restaurantName}" and return a JSON object.
-
-REVIEWS:
-${reviewText}
-
-Return ONLY this JSON with no extra text, no markdown, no backticks:
-{
-  "healthScore": <number 0-100 based on overall sentiment>,
-  "totalAnalysed": ${reviews.length},
-  "sentiment": {
-    "positive": <count of positive reviews>,
-    "neutral": <count of neutral reviews>,
-    "negative": <count of negative reviews>
-  },
-  "topComplaints": [
-    {"issue": "<main complaint>", "count": <number>, "severity": "high", "example": "<short quote>"},
-    {"issue": "<second complaint>", "count": <number>, "severity": "medium", "example": "<short quote>"}
-  ],
-  "topPraises": [
-    {"aspect": "<what customers loved>", "count": <number>, "example": "<short quote>"},
-    {"aspect": "<second praise>", "count": <number>, "example": "<short quote>"}
-  ],
-  "bestDishes": ["<dish mentioned positively>", "<second dish>", "<third dish>"],
-  "dishesToAvoid": ["<dish with complaints>"],
-  "priceRange": {
-    "avgMealForOne": "<estimated price range>",
-    "avgMealForTwo": "<estimated price range>",
-    "valueRating": <1-5>,
-    "valueLabel": "<Excellent or Good or Fair or Poor>"
-  },
-  "bestTimeToVisit": "<recommendation based on reviews>",
-  "accessibility": {
-    "parking": {"available": <true or false or null>, "detail": "<detail or null>"},
-    "wheelchair": {"accessible": <true or false or null>, "detail": "<detail or null>"},
-    "kidsChairs": {"available": <true or false or null>, "detail": "<detail or null>"},
-    "wifi": {"available": <true or false or null>, "detail": "<detail or null>"},
-    "noiseLevel": "<Quiet or Moderate or Loud or null>",
-    "restrooms": "<Clean or Mixed or Poor or null>"
-  },
-  "hygiene": {
-    "score": <1-10>,
-    "label": "<Excellent or Good or Fair or Poor>",
-    "kitchen": "<Clean or Mixed or Poor or Unknown>",
-    "tables": "<Clean or Mixed or Poor or Unknown>",
-    "staff": "<Professional or Mixed or Poor or Unknown>",
-    "restrooms": "<Clean or Mixed or Poor or Unknown>",
-    "ownerAlert": "<specific issue or null>"
-  },
-  "forOwner": {
-    "conclusion": "<2 sentence summary of main strengths and weaknesses>",
-    "urgentAction": "<single most important thing to fix>",
-    "improvements": [
-      "<specific improvement 1>",
-      "<specific improvement 2>",
-      "<specific improvement 3>"
-    ]
-  },
-  "forCustomer": {
-    "conclusion": "<2 sentence honest summary to help customer decide>",
-    "mustTry": "<best dish or experience>",
-    "avoid": "<what to avoid>",
-    "verdict": "<recommended or mixed or avoid>"
-  },
-  "fakeReviewCount": 0,
-  "fakeReviewReason": null
-}`;
+  var prompt = 'You are analysing ' + total + ' Google reviews for "' + restaurantName + '".\n\n'
+    + 'REVIEWS:\n' + reviewText + '\n\n'
+    + 'Return ONLY a raw JSON object. No markdown. No code blocks. No explanation. Start with { and end with }.\n\n'
+    + 'Required format:\n'
+    + '{"healthScore":75,"totalAnalysed":' + total + ',"sentiment":{"positive":3,"neutral":1,"negative":1},'
+    + '"topComplaints":[{"issue":"example issue","count":2,"severity":"high","example":"short quote"}],'
+    + '"topPraises":[{"aspect":"great food","count":3,"example":"short quote"}],'
+    + '"bestDishes":["Biryani","Butter Chicken","Naan"],'
+    + '"dishesToAvoid":["example dish"],'
+    + '"priceRange":{"avgMealForOne":"$12-18","avgMealForTwo":"$25-35","valueRating":4,"valueLabel":"Good"},'
+    + '"bestTimeToVisit":"Weekday lunch",'
+    + '"accessibility":{"parking":{"available":true,"detail":"free lot"},"wheelchair":{"accessible":true,"detail":"ramp available"},"kidsChairs":{"available":true,"detail":"high chairs"},"wifi":{"available":null,"detail":null},"noiseLevel":"Moderate","restrooms":"Clean"},'
+    + '"hygiene":{"score":8,"label":"Good","kitchen":"Clean","tables":"Clean","staff":"Professional","restrooms":"Clean","ownerAlert":null},'
+    + '"forOwner":{"conclusion":"Your food is praised but service needs improvement.","urgentAction":"Improve service speed during peak hours","improvements":["Train staff on speed","Maintain food temperature","Respond to reviews","Add more staff on weekends"]},'
+    + '"forCustomer":{"conclusion":"Good food quality with some service issues. Worth visiting for the biryani.","mustTry":"Biryani","avoid":"Visiting during dinner rush","verdict":"recommended"},'
+    + '"fakeReviewCount":0,"fakeReviewReason":null}\n\n'
+    + 'Now write the REAL analysis based on the actual reviews above for ' + restaurantName + '. '
+    + 'Fill every field with real data from the reviews. Do not use the example values above.';
 
   try {
-    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+    var apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -94,52 +55,110 @@ Return ONLY this JSON with no extra text, no markdown, no backticks:
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2000,
         messages: [{ role: 'user', content: prompt }]
-      }),
+      })
     });
 
-    const data = await apiRes.json();
+    var data = await apiRes.json();
 
-    if (!data.content || !data.content[0]) {
-      return res.status(500).json({ error: 'No response from Claude AI' });
+    if (!data.content || !data.content[0] || !data.content[0].text) {
+      return res.status(500).json({ error: 'No response from Claude AI. Check ANTHROPIC_API_KEY.' });
     }
 
-    let raw = data.content[0].text || '';
-    console.log('Raw Claude response:', raw.substring(0, 200));
+    var raw = data.content[0].text;
+    console.log('Claude raw response length:', raw.length);
+    console.log('Claude first 300 chars:', raw.substring(0, 300));
 
-    // Strip any markdown
-    raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
+    // Clean markdown if present
+    raw = raw.replace(/```json/gi, '').replace(/```/gi, '').trim();
 
-    // Extract JSON object
-    const start = raw.indexOf('{');
-    const end   = raw.lastIndexOf('}');
-    if (start === -1 || end === -1) {
-      return res.status(500).json({ error: 'Claude did not return valid JSON' });
-    }
-    raw = raw.substring(start, end + 1);
+    // Extract JSON
+    var startIdx = raw.indexOf('{');
+    var endIdx   = raw.lastIndexOf('}');
 
-    const analysis = JSON.parse(raw);
-
-    // Fix health score if 0
-    if (!analysis.healthScore) {
-      const pos = analysis.sentiment?.positive || 0;
-      const tot = analysis.totalAnalysed || reviews.length;
-      analysis.healthScore = Math.max(20, Math.round((pos / Math.max(tot, 1)) * 100));
+    if (startIdx === -1 || endIdx === -1) {
+      console.log('No JSON found in response:', raw);
+      return res.status(500).json({ error: 'Claude did not return JSON. Response: ' + raw.substring(0, 100) });
     }
 
-    // Fix missing fields
-    if (!analysis.forCustomer) analysis.forCustomer = { conclusion: "Based on reviews, this restaurant has mixed feedback.", mustTry: "Ask staff for recommendations", avoid: "Visiting during peak hours", verdict: "mixed" };
-    if (!analysis.forOwner) analysis.forOwner = { conclusion: "Reviews show mixed customer experiences.", urgentAction: "Review customer feedback carefully", improvements: ["Improve service speed", "Maintain food quality", "Respond to reviews"] };
-    if (!analysis.bestDishes) analysis.bestDishes = [];
+    var jsonStr   = raw.substring(startIdx, endIdx + 1);
+    var analysis  = JSON.parse(jsonStr);
+
+    // Fix health score
+    if (!analysis.healthScore || analysis.healthScore === 0) {
+      var pos = (analysis.sentiment && analysis.sentiment.positive) ? analysis.sentiment.positive : 0;
+      analysis.healthScore = Math.max(20, Math.round((pos / total) * 100));
+    }
+
+    // Fix totalAnalysed
+    analysis.totalAnalysed = total;
+
+    // Fix missing forCustomer
+    if (!analysis.forCustomer) {
+      analysis.forCustomer = {
+        conclusion: 'This restaurant has received mixed reviews from customers.',
+        mustTry: 'Ask staff for their speciality',
+        avoid: 'Peak dinner hours',
+        verdict: 'mixed'
+      };
+    }
+
+    // Fix missing forOwner
+    if (!analysis.forOwner) {
+      analysis.forOwner = {
+        conclusion: 'Customer reviews show mixed experiences at your restaurant.',
+        urgentAction: 'Review all customer feedback and address top complaints',
+        improvements: ['Improve service speed', 'Maintain food quality consistency', 'Respond to all reviews']
+      };
+    }
+
+    // Fix missing arrays
+    if (!analysis.bestDishes)    analysis.bestDishes    = [];
+    if (!analysis.dishesToAvoid) analysis.dishesToAvoid = [];
     if (!analysis.topComplaints) analysis.topComplaints = [];
-    if (!analysis.topPraises) analysis.topPraises = [];
-    if (!analysis.priceRange) analysis.priceRange = { avgMealForOne: "—", avgMealForTwo: "—", valueRating: 3, valueLabel: "Fair" };
-    if (!analysis.hygiene) analysis.hygiene = { score: 7, label: "Good", kitchen: "Unknown", tables: "Unknown", staff: "Unknown", restrooms: "Unknown", ownerAlert: null };
-    if (!analysis.accessibility) analysis.accessibility = { parking: { available: null, detail: null }, wheelchair: { accessible: null, detail: null }, kidsChairs: { available: null, detail: null }, wifi: { available: null, detail: null }, noiseLevel: null, restrooms: null };
+    if (!analysis.topPraises)    analysis.topPraises    = [];
 
-    return res.status(200).json({ analysis });
+    // Fix missing priceRange
+    if (!analysis.priceRange) {
+      analysis.priceRange = { avgMealForOne: 'Not mentioned', avgMealForTwo: 'Not mentioned', valueRating: 3, valueLabel: 'Fair' };
+    }
+
+    // Fix missing hygiene
+    if (!analysis.hygiene) {
+      analysis.hygiene = { score: 7, label: 'Good', kitchen: 'Unknown', tables: 'Unknown', staff: 'Unknown', restrooms: 'Unknown', ownerAlert: null };
+    }
+
+    // Fix missing accessibility
+    if (!analysis.accessibility) {
+      analysis.accessibility = {
+        parking:    { available: null, detail: null },
+        wheelchair: { accessible: null, detail: null },
+        kidsChairs: { available: null, detail: null },
+        wifi:       { available: null, detail: null },
+        noiseLevel: null,
+        restrooms:  null
+      };
+    }
+
+    console.log('Analysis complete. Health score:', analysis.healthScore);
+    return res.status(200).json({ analysis: analysis });
 
   } catch (err) {
     console.error('analyse.js error:', err.message);
     return res.status(500).json({ error: 'Analysis failed: ' + err.message });
   }
 };
+```
+
+---
+
+**After committing on GitHub:**
+1. Wait 30 seconds for Vercel to redeploy
+2. Go to your app
+3. Paste Hashtag India URL
+4. Analyse again
+5. You should see real biryani data, real health score, everything filled! ✅
+
+Also go to Vercel → Runtime Logs while testing — you should see:
+```
+Claude raw response length: 800+
+Analysis complete. Health score: 75

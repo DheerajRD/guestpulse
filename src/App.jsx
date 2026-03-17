@@ -601,7 +601,7 @@ export default function App(){
                 <p style={{fontSize:12,color:C.muted,marginTop:8}}>{progress}%</p>
               </Card>
             )}
-            {!isLoading&&analysis&&restaurant&&typeof analysis==="object"&&(
+            {!isLoading&&analysis&&restaurant&&(()=>{
               const v=VERDICT[analysis.forCustomer?.verdict]||VERDICT.mixed;
               return(
                 <>

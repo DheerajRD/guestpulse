@@ -211,9 +211,10 @@ export default function App() {
         body: JSON.stringify({ reviews: revData.reviews, restaurantName: revData.restaurant.name }),
       });
       const anaData = await anaRes.json();
-      if (!anaRes.ok) throw new Error(anaData.error || "Analysis failed");
-      setAnalysis(anaData.analysis);
-      setProgress(100); setStage("done");
+if (!anaRes.ok) throw new Error(anaData.error || "Analysis failed");
+console.log("ANALYSIS RESPONSE:", JSON.stringify(anaData).substring(0, 500));
+setAnalysis(anaData.analysis || anaData);
+setProgress(100); setStage("done");
     } catch(e) {
       setErrorMsg(e.message || "Something went wrong.");
       setStage("error"); setProgress(0);

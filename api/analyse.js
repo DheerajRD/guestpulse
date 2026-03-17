@@ -11,14 +11,79 @@ module.exports = async function handler(req, res) {
   const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
   if (!ANTHROPIC_API_KEY) return res.status(500).json({ error: 'ANTHROPIC_API_KEY not configured' });
 
-  const reviewText = reviews.map(function(r) {
-    return '[' + r.rating + 'star] ' + r.author + ': "' + r.text + '"';
-  }).join('\n');
+  const reviewText = reviews.map((r, i) =>
+    `Review ${i+1} (${r.rating} stars) by ${r.author}: ${r.text}`
+  ).join('\n\n');
 
-  const prompt = 'You are a restaurant analyst. Analyse these ' + reviews.length + ' reviews for "' + restaurantName + '".\n\nREVIEWS:\n' + reviewText + '\n\nRespond with ONLY a JSON object. No markdown. No backticks. No extra text. Just pure JSON.\n\n{"healthScore":75,"totalAnalysed":' + reviews.length + ',"sentiment":{"positive":3,"neutral":1,"negative":1},"topComplaints":[{"issue":"Slow service","count":2,"severity":"medium","example":"waited too long"},{"issue":"Cold food","count":1,"severity":"low","example":"food was cold"}],"topPraises":[{"aspect":"Great biryani","count":3,"example":"best biryani in town"},{"aspect":"Friendly staff","count":2,"example":"very welcoming"}],"bestDishes":["Biryani","Butter Chicken","Naan"],"dishesToAvoid":["Desserts"],"priceRange":{"avgMealForOne":"$12-18","avgMealForTwo":"$25-35","valueRating":4,"valueLabel":"Good"},"bestTimeToVisit":"Weekday lunch for fastest service","accessibility":{"parking":{"available":true,"detail":"Free parking lot"},"wheelchair":{"accessible":true,"detail":"Ramp at entrance"},"kidsChairs":{"available":true,"detail":"High chairs available"},"wifi":{"available":null,"detail":null},"noiseLevel":"Moderate","restrooms":"Clean"},"hygiene":{"score":8,"label":"Good","kitchen":"Clean","tables":"Clean","staff":"Professional","restrooms":"Clean","ownerAlert":null},"forOwner":{"conclusion":"Your biryani is highly praised but service speed needs improvement. Focus on reducing wait times during peak hours.","urgentAction":"Train staff to improve service speed during dinner rush hours","improvements":["Speed up service during peak hours","Maintain food temperature standards","Add more staff on weekends","Respond to negative reviews promptly"]},"forCustomer":{"conclusion":"Good Indian restaurant with excellent biryani. Service can be slow during busy times but food quality is worth the wait.","mustTry":"Biryani - highly recommended by most customers","avoid":"Visiting during dinner rush without a reservation","verdict":"recommended"},"fakeReviewCount":0,"fakeReviewReason":null}\n\nNow analyse the actual reviews above and return real JSON in exactly the same format. Base everything on what the reviews actually say about ' + restaurantName + '.';
+  const prompt = `Analyse these ${reviews.length} Google reviews for the restaurant "${restaurantName}" and return a JSON object.
+
+REVIEWS:
+${reviewText}
+
+Return ONLY this JSON with no extra text, no markdown, no backticks:
+{
+  "healthScore": <number 0-100 based on overall sentiment>,
+  "totalAnalysed": ${reviews.length},
+  "sentiment": {
+    "positive": <count of positive reviews>,
+    "neutral": <count of neutral reviews>,
+    "negative": <count of negative reviews>
+  },
+  "topComplaints": [
+    {"issue": "<main complaint>", "count": <number>, "severity": "high", "example": "<short quote>"},
+    {"issue": "<second complaint>", "count": <number>, "severity": "medium", "example": "<short quote>"}
+  ],
+  "topPraises": [
+    {"aspect": "<what customers loved>", "count": <number>, "example": "<short quote>"},
+    {"aspect": "<second praise>", "count": <number>, "example": "<short quote>"}
+  ],
+  "bestDishes": ["<dish mentioned positively>", "<second dish>", "<third dish>"],
+  "dishesToAvoid": ["<dish with complaints>"],
+  "priceRange": {
+    "avgMealForOne": "<estimated price range>",
+    "avgMealForTwo": "<estimated price range>",
+    "valueRating": <1-5>,
+    "valueLabel": "<Excellent or Good or Fair or Poor>"
+  },
+  "bestTimeToVisit": "<recommendation based on reviews>",
+  "accessibility": {
+    "parking": {"available": <true or false or null>, "detail": "<detail or null>"},
+    "wheelchair": {"accessible": <true or false or null>, "detail": "<detail or null>"},
+    "kidsChairs": {"available": <true or false or null>, "detail": "<detail or null>"},
+    "wifi": {"available": <true or false or null>, "detail": "<detail or null>"},
+    "noiseLevel": "<Quiet or Moderate or Loud or null>",
+    "restrooms": "<Clean or Mixed or Poor or null>"
+  },
+  "hygiene": {
+    "score": <1-10>,
+    "label": "<Excellent or Good or Fair or Poor>",
+    "kitchen": "<Clean or Mixed or Poor or Unknown>",
+    "tables": "<Clean or Mixed or Poor or Unknown>",
+    "staff": "<Professional or Mixed or Poor or Unknown>",
+    "restrooms": "<Clean or Mixed or Poor or Unknown>",
+    "ownerAlert": "<specific issue or null>"
+  },
+  "forOwner": {
+    "conclusion": "<2 sentence summary of main strengths and weaknesses>",
+    "urgentAction": "<single most important thing to fix>",
+    "improvements": [
+      "<specific improvement 1>",
+      "<specific improvement 2>",
+      "<specific improvement 3>"
+    ]
+  },
+  "forCustomer": {
+    "conclusion": "<2 sentence honest summary to help customer decide>",
+    "mustTry": "<best dish or experience>",
+    "avoid": "<what to avoid>",
+    "verdict": "<recommended or mixed or avoid>"
+  },
+  "fakeReviewCount": 0,
+  "fakeReviewReason": null
+}`;
 
   try {
-    var apiRes = await fetch('https://api.anthropic.com/v1/messages', {
+    const apiRes = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -32,37 +97,49 @@ module.exports = async function handler(req, res) {
       }),
     });
 
-    var data = await apiRes.json();
+    const data = await apiRes.json();
 
     if (!data.content || !data.content[0]) {
       return res.status(500).json({ error: 'No response from Claude AI' });
     }
 
-    var raw = data.content[0].text || '{}';
+    let raw = data.content[0].text || '';
+    console.log('Raw Claude response:', raw.substring(0, 200));
 
-    // Clean up any markdown formatting
-    raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();
+    // Strip any markdown
+    raw = raw.replace(/```json/gi, '').replace(/```/g, '').trim();
 
-    // Find JSON object in response
-    var startIdx = raw.indexOf('{');
-    var endIdx   = raw.lastIndexOf('}');
-    if (startIdx !== -1 && endIdx !== -1) {
-      raw = raw.substring(startIdx, endIdx + 1);
+    // Extract JSON object
+    const start = raw.indexOf('{');
+    const end   = raw.lastIndexOf('}');
+    if (start === -1 || end === -1) {
+      return res.status(500).json({ error: 'Claude did not return valid JSON' });
+    }
+    raw = raw.substring(start, end + 1);
+
+    const analysis = JSON.parse(raw);
+
+    // Fix health score if 0
+    if (!analysis.healthScore) {
+      const pos = analysis.sentiment?.positive || 0;
+      const tot = analysis.totalAnalysed || reviews.length;
+      analysis.healthScore = Math.max(20, Math.round((pos / Math.max(tot, 1)) * 100));
     }
 
-    var analysis = JSON.parse(raw);
+    // Fix missing fields
+    if (!analysis.forCustomer) analysis.forCustomer = { conclusion: "Based on reviews, this restaurant has mixed feedback.", mustTry: "Ask staff for recommendations", avoid: "Visiting during peak hours", verdict: "mixed" };
+    if (!analysis.forOwner) analysis.forOwner = { conclusion: "Reviews show mixed customer experiences.", urgentAction: "Review customer feedback carefully", improvements: ["Improve service speed", "Maintain food quality", "Respond to reviews"] };
+    if (!analysis.bestDishes) analysis.bestDishes = [];
+    if (!analysis.topComplaints) analysis.topComplaints = [];
+    if (!analysis.topPraises) analysis.topPraises = [];
+    if (!analysis.priceRange) analysis.priceRange = { avgMealForOne: "—", avgMealForTwo: "—", valueRating: 3, valueLabel: "Fair" };
+    if (!analysis.hygiene) analysis.hygiene = { score: 7, label: "Good", kitchen: "Unknown", tables: "Unknown", staff: "Unknown", restrooms: "Unknown", ownerAlert: null };
+    if (!analysis.accessibility) analysis.accessibility = { parking: { available: null, detail: null }, wheelchair: { accessible: null, detail: null }, kidsChairs: { available: null, detail: null }, wifi: { available: null, detail: null }, noiseLevel: null, restrooms: null };
 
-    // Make sure healthScore is never 0
-    if (!analysis.healthScore || analysis.healthScore === 0) {
-      var pos = analysis.sentiment?.positive || 0;
-      var tot = analysis.totalAnalysed || reviews.length;
-      analysis.healthScore = Math.max(10, Math.round((pos / tot) * 100));
-    }
-
-    return res.status(200).json({ analysis: analysis });
+    return res.status(200).json({ analysis });
 
   } catch (err) {
-    console.error('analyse.js error:', err);
-    return res.status(500).json({ error: err.message || 'Analysis failed' });
+    console.error('analyse.js error:', err.message);
+    return res.status(500).json({ error: 'Analysis failed: ' + err.message });
   }
 };

@@ -225,47 +225,30 @@ export default function App() {
       try {
         anaData = JSON.parse(anaText);
       } catch(parseErr) {
-        throw new Error("Failed to parse analysis response: " + anaText.substring(0, 100));
+        throw new Error("Failed to parse response");
       }
 
       if (!anaRes.ok) throw new Error(anaData.error || "Analysis failed");
 
-      // Handle both {analysis: {...}} and direct {...} response formats
-      let finalAnalysis = null;
-      if (anaData.analysis && typeof anaData.analysis === "object") {
-        finalAnalysis = anaData.analysis;
-      } else if (anaData.healthScore !== undefined) {
-        finalAnalysis = anaData;
-      } else {
-        throw new Error("Analysis returned empty data. Please try again.");
-      }
+      let finalAnalysis = anaData.analysis || anaData;
 
-      // Make sure all required fields exist
-      if (!finalAnalysis.forCustomer) {
-        finalAnalysis.forCustomer = {
-          conclusion: "Based on customer reviews, this restaurant offers a good dining experience.",
-          mustTry: "Ask staff for today's specials",
-          avoid: "Peak dinner hours may be busy",
-          verdict: "mixed"
-        };
+      if (!finalAnalysis || typeof finalAnalysis !== "object") {
+        throw new Error("Invalid analysis data received");
       }
-      if (!finalAnalysis.forOwner) {
-        finalAnalysis.forOwner = {
-          conclusion: "Your restaurant has received mixed reviews. Focus on consistency.",
-          urgentAction: "Address the most common customer complaints immediately",
-          improvements: ["Improve service speed", "Maintain food quality", "Respond to reviews"]
-        };
-      }
+      if (!finalAnalysis.healthScore || finalAnalysis.healthScore === 0) finalAnalysis.healthScore = 50;
       if (!finalAnalysis.totalAnalysed) finalAnalysis.totalAnalysed = revData.reviews.length;
-      if (!finalAnalysis.bestDishes) finalAnalysis.bestDishes = [];
-      if (!finalAnalysis.dishesToAvoid) finalAnalysis.dishesToAvoid = [];
+      if (!finalAnalysis.sentiment) finalAnalysis.sentiment = { positive: 0, neutral: 0, negative: 0 };
       if (!finalAnalysis.topComplaints) finalAnalysis.topComplaints = [];
       if (!finalAnalysis.topPraises) finalAnalysis.topPraises = [];
-      if (!finalAnalysis.priceRange) finalAnalysis.priceRange = { avgMealForOne: "Not mentioned", avgMealForTwo: "Not mentioned", valueRating: 3, valueLabel: "Fair" };
+      if (!finalAnalysis.bestDishes) finalAnalysis.bestDishes = [];
+      if (!finalAnalysis.dishesToAvoid) finalAnalysis.dishesToAvoid = [];
+      if (!finalAnalysis.priceRange) finalAnalysis.priceRange = { avgMealForOne: "—", avgMealForTwo: "—", valueRating: 3, valueLabel: "Fair" };
+      if (!finalAnalysis.bestTimeToVisit) finalAnalysis.bestTimeToVisit = "Weekday lunch hours";
+      if (!finalAnalysis.forOwner) finalAnalysis.forOwner = { conclusion: "Reviews show mixed experiences.", urgentAction: "Review customer feedback", improvements: ["Improve service", "Maintain quality", "Respond to reviews"] };
+      if (!finalAnalysis.forCustomer) finalAnalysis.forCustomer = { conclusion: "Mixed reviews from customers.", mustTry: "Ask staff for recommendations", avoid: "Peak hours", verdict: "mixed" };
       if (!finalAnalysis.hygiene) finalAnalysis.hygiene = { score: 7, label: "Good", kitchen: "Unknown", tables: "Unknown", staff: "Unknown", restrooms: "Unknown", ownerAlert: null };
       if (!finalAnalysis.accessibility) finalAnalysis.accessibility = { parking: { available: null, detail: null }, wheelchair: { accessible: null, detail: null }, kidsChairs: { available: null, detail: null }, wifi: { available: null, detail: null }, noiseLevel: null, restrooms: null };
-      if (!finalAnalysis.sentiment) finalAnalysis.sentiment = { positive: 0, neutral: 0, negative: 0 };
-      if (!finalAnalysis.healthScore) finalAnalysis.healthScore = 50;
+      if (!finalAnalysis.fakeReviewCount) finalAnalysis.fakeReviewCount = 0;
 
       setAnalysis(finalAnalysis);
       setProgress(100);

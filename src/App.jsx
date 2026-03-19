@@ -156,7 +156,7 @@ export default function App(){
       setBranches(d.branches||[]);setStage("done");goTo("branches");
     }catch(e){setErr(e.message);setStage("error");}
   };
-  const selectBranch=async b=>{goTo("loading");await runAnalysis(null,b.placeId);if(stage!=="error")goTo("customer-dash");};
+  const selectBranch=async b=>{goTo("loading");await runAnalysis(null,b.placeId);goTo("customer-dash");};
 
   const downloadReport=()=>{
     if(!analysis||!restaurant)return;

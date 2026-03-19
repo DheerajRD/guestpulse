@@ -136,7 +136,7 @@ export default function App(){
     if(!ownerUrl.trim()){setErr("Please paste your Google Maps URL.");return;}
     goTo("loading");
     await runAnalysis(ownerUrl.trim(),null);
-    if(stage!=="error")goTo("owner-dash");
+    goTo("owner-dash");
   };
   const handleDirect=async()=>{
     if(!directUrl.trim()){setErr("Please paste a Google Maps URL.");return;}

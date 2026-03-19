@@ -142,7 +142,7 @@ export default function App(){
     if(!directUrl.trim()){setErr("Please paste a Google Maps URL.");return;}
     goTo("loading");
     await runAnalysis(directUrl.trim(),null);
-    if(stage!=="error")goTo(role==="owner"?"owner-dash":"customer-dash");
+    goTo(role==="owner"?"owner-dash":"customer-dash");
   };
   const findBranches=async()=>{
     if(!custName.trim()){setErr("Please enter a restaurant name.");return;}

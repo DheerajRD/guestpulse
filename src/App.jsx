@@ -354,7 +354,7 @@ export default function App(){
           </div>
         )}
 
-        {screen==="owner-dash"&&analysis&&restaurant&&(
+        {screen==="owner-dash"&&(
           <div className="fade">
             <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:16,flexWrap:"wrap"}}>
               <BackBtn onClick={()=>goTo("owner-search")}/>

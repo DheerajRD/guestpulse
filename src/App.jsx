@@ -399,7 +399,7 @@ export default function App(){
           </div>
         )}
 
-        {screen==="customer-dash"&&analysis&&restaurant&&(()=>{
+        {screen==="customer-dash"&&(()=>{
           const v=VERDICT[analysis.forCustomer?.verdict]||VERDICT.mixed;
           return(
             <div className="fade">

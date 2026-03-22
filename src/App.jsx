@@ -163,6 +163,41 @@ export default function App(){
       setLoading(false);setProgress(0);
     }
   };
+```
+
+---
+
+**Commit both files → wait 30 seconds → test!**
+
+Now the flow is:
+```
+Frontend → Start Apify (2s) ✅
+Frontend polls every 5s → checks if done
+When done → sends to Claude → shows results
+        if(d2.status==="running")continue;
+      }
+
+      if(!reviews||reviews.length===0)throw new Error("No reviews found. Try again.");
+
+      setProgress(70);setProgressMsg("Claude AI is finding patterns...");
+
+      const r3=await fetch("/api/analyse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reviews,restaurantName:d1.restaurant.name})});
+      const t3=await r3.text();
+      let d3;try{d3=JSON.parse(t3);}catch(e){throw new Error("Analysis error: "+t3.substring(0,100));}
+      if(!r3.ok)throw new Error(d3.error||"Analysis failed");
+
+      const fixed=fixAnalysis(d3,reviews.length);
+      if(!fixed)throw new Error("Empty analysis data.");
+
+      setProgress(100);setProgressMsg("Done! "+reviews.length+" reviews analysed.");
+      await new Promise(r=>setTimeout(r,400));
+      setAnalysis(fixed);
+
+    }catch(e){
+      setErr(e.message||"Something went wrong.");
+      setLoading(false);setProgress(0);
+    }
+  };
 
 **Commit both files → wait 30 seconds → test!**
 

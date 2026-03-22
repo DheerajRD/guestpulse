@@ -127,6 +127,7 @@ export default function App(){
       await new Promise(r=>setTimeout(r,300));
       setAnalysis(fixed);
 setStage("done");
+return true;
 return true;   
     }catch(e){
   console.error(e);

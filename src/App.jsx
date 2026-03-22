@@ -125,19 +125,34 @@ export default function App(){
       if(!fixed)throw new Error("Empty analysis data.");
       setProgress(100);setProgressMsg("Done!");
       await new Promise(r=>setTimeout(r,300));
-      setAnalysis(fixed);setStage("done");
+      setAnalysis(fixed);
+setStage("done");
+return true;   
     }catch(e){
-      setErr(e.message||"Something went wrong.");
-      setStage("error");setProgress(0);
-    }
+  console.error(e);
+  setErr(e.message || "Something went wrong while analysing reviews.");
+  setStage("error");
+  setProgress(0);
+  return false;   
+}
   };
 
-  const handleOwner=async()=>{
-    if(!ownerUrl.trim()){setErr("Please paste your Google Maps URL.");return;}
-    goTo("loading");
-    await runAnalysis(ownerUrl.trim(),null);
+  const handleOwner = async () => {
+  if(!ownerUrl.trim()){
+    setErr("Please paste your Google Maps URL.");
+    return;
+  }
+
+  goTo("loading");
+
+  const success = await runAnalysis(ownerUrl.trim(), null);
+
+  if (success) {
     goTo("owner-dash");
-  };
+  } else {
+    goTo("error");
+  }
+};
   const handleDirect=async()=>{
     if(!directUrl.trim()){setErr("Please paste a Google Maps URL.");return;}
     goTo("loading");

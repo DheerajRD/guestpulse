@@ -131,10 +131,10 @@ return true;
 return true;   
     }catch(e){
   console.error(e);
-  setErr(e.message || "Something went wrong while analysing reviews.");
+  setErr(e.message||"Something went wrong.");
   setStage("error");
   setProgress(0);
-  return false;   
+  return false;
 }
   };
 

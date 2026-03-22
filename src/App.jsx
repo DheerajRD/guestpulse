@@ -104,39 +104,73 @@ export default function App(){
 
   const runAnalysis=async(placeUrl,placeId)=>{
     setErr("");setRestaurant(null);setAnalysis(null);
+    setLoading(true);setProgress(10);setProgressMsg("Connecting to Google Maps...");
+    goTo("loading");
     try{
-      setStage("fetching");setProgress(10);setProgressMsg("Connecting to Google Maps...");
       await new Promise(r=>setTimeout(r,300));
-      setProgress(25);setProgressMsg("Finding restaurant...");
+      setProgress(20);setProgressMsg("Finding restaurant...");
+
+      // Phase 1 — start Apify run
       const r1=await fetch("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({placeUrl,placeId})});
       const t1=await r1.text();
       let d1;try{d1=JSON.parse(t1);}catch(e){throw new Error("Server error: "+t1.substring(0,100));}
       if(!r1.ok)throw new Error(d1.error||"Failed to fetch reviews");
-      if(!d1.reviews||d1.reviews.length===0)throw new Error("No reviews found.");
+      if(!d1.restaurant)throw new Error("Could not find restaurant.");
+
       setRestaurant(d1.restaurant);
-      setProgress(55);setProgressMsg("Reading "+d1.reviews.length+" recent reviews...");
-      await new Promise(r=>setTimeout(r,200));
-      setStage("analysing");setProgress(70);setProgressMsg("Claude AI is finding patterns...");
-      const r2=await fetch("/api/analyse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reviews:d1.reviews,restaurantName:d1.restaurant.name})});
-      const t2=await r2.text();
-      let d2;try{d2=JSON.parse(t2);}catch(e){throw new Error("Analysis error: "+t2.substring(0,100));}
-      if(!r2.ok)throw new Error(d2.error||"Analysis failed");
-      const fixed=fixAnalysis(d2,d1.reviews.length);
+      setProgress(35);setProgressMsg("Apify started — fetching recent reviews...");
+
+      // Phase 2 — poll until done
+      let reviews=null;
+      let attempts=0;
+      const maxAttempts=24; // 24 x 5s = 2 minutes max
+
+      while(attempts<maxAttempts){
+        await new Promise(r=>setTimeout(r,5000));
+        attempts++;
+        setProgress(35+Math.min(attempts*2,30));
+        setProgressMsg("Reading recent reviews... ("+Math.round(attempts*5)+"s)");
+
+        const r2=await fetch("/api/reviews",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({runId:d1.runId})});
+        const t2=await r2.text();
+        let d2;try{d2=JSON.parse(t2);}catch(e){continue;}
+        if(!r2.ok){throw new Error(d2.error||"Failed");}
+        if(d2.status==="done"&&d2.reviews){
+          reviews=d2.reviews;
+          break;
+        }
+        if(d2.status==="running")continue;
+      }
+
+      if(!reviews||reviews.length===0)throw new Error("No reviews found. Try again.");
+
+      setProgress(70);setProgressMsg("Claude AI is finding patterns...");
+
+      const r3=await fetch("/api/analyse",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({reviews,restaurantName:d1.restaurant.name})});
+      const t3=await r3.text();
+      let d3;try{d3=JSON.parse(t3);}catch(e){throw new Error("Analysis error: "+t3.substring(0,100));}
+      if(!r3.ok)throw new Error(d3.error||"Analysis failed");
+
+      const fixed=fixAnalysis(d3,reviews.length);
       if(!fixed)throw new Error("Empty analysis data.");
-      setProgress(100);setProgressMsg("Done!");
-      await new Promise(r=>setTimeout(r,300));
+
+      setProgress(100);setProgressMsg("Done! "+reviews.length+" reviews analysed.");
+      await new Promise(r=>setTimeout(r,400));
       setAnalysis(fixed);
-setStage("done");
-return true;
-return true;   
+
     }catch(e){
-  console.error(e);
-  setErr(e.message||"Something went wrong.");
-  setStage("error");
-  setProgress(0);
-  return false;
-}
+      setErr(e.message||"Something went wrong.");
+      setLoading(false);setProgress(0);
+    }
   };
+
+**Commit both files → wait 30 seconds → test!**
+
+Now the flow is:
+```
+Frontend → Start Apify (2s) ✅
+Frontend polls every 5s → checks if done
+When done → sends to Claude → shows results
 
   const handleOwner = async () => {
   if(!ownerUrl.trim()){

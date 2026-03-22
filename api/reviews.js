@@ -1,4 +1,11 @@
-module.exports = async function handler(req, res) {
+const { placeUrl } = req.body || {};
+
+// block shortened Google links (these cause blank page)
+if (placeUrl && placeUrl.includes("maps.app.goo.gl")) {
+  return res.status(400).json({
+    error: "Please open the Google Maps link in browser and copy the full URL."
+  });
+}
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');

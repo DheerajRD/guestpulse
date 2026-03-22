@@ -407,15 +407,3 @@ export default function App() {
     </div>
   );
 }
-```
-
----
-
-**That's it! Simple, clean, works perfectly:**
-```
-✅ One page — no navigation issues
-✅ Paste URL → click Analyse
-✅ Apify fetches recent reviews
-✅ Claude analyses
-✅ 5 tabs — Owner, Customer, Food, Access, Hygiene
-✅ No blank page bugs ever

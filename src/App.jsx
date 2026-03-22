@@ -394,8 +394,8 @@ export default function App(){
             <Lbl>How to Improve</Lbl>
             {(analysis.forOwner?.improvements||[]).map((imp,i)=><ImpRow key={i} n={i+1} text={imp}/>)}
             {analysis.fakeReviewCount>0&&<Card style={{background:"rgba(255,217,61,0.06)",border:"1px solid rgba(255,217,61,0.2)"}}><p style={{fontSize:13,fontWeight:700,color:"#ffd93d",marginBottom:4}}>🤖 {analysis.fakeReviewCount} Suspicious Reviews</p><p style={{fontSize:12,color:C.muted}}>{analysis.fakeReviewReason}</p></Card>}
-            <button className="bghost" style={{width:"100%",marginTop:6,padding:"12px"}} onClick={()=>goTo("all-tabs")}>View All Tabs — Food, Hygiene, Accessibility →</button>
-            <EmailSection analysis={analysis} restaurant={restaurant} showToast={showToast}/>
+{!analysis&&!err&&<Card style={{textAlign:"center",padding:32}}><div className="pulse" style={{fontSize:44,marginBottom:14}}>🤖</div><p style={{fontSize:14,color:C.muted}}>Analysing reviews...</p></Card>}
+{!analysis&&err&&<Card style={{background:C.redDim,border:`1px solid ${C.redBorder}`}}><p style={{color:C.red,fontSize:13}}>⚠️ {err}</p><button className="bghost" style={{marginTop:10,fontSize:12}} onClick={()=>goTo("owner-search")}>← Try Again</button></Card>}            <EmailSection analysis={analysis} restaurant={restaurant} showToast={showToast}/>
           </div>
         )}
 

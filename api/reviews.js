@@ -106,8 +106,8 @@ body: JSON.stringify({
   startUrls: [{ url: googleMapsUrl }],
   maxReviews: 150,
   reviewsSort: 'newest',
+  reviewsStartDate: '12 months',
   language: 'en',
-  reviewsStartDate: twelveMonthsAgo,
 }),
     });
 

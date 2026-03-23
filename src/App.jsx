@@ -203,13 +203,13 @@ export default function App() {
               <p style={{fontSize:11, color:C.muted, margin:0}}>Paste any Google Maps restaurant link</p>
             </div>
           </div>
-          <input
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && !isLoading && analyse()}
-            placeholder="https://maps.google.com/maps/place/your-restaurant..."
-            style={{width:"100%", background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.white, fontSize:14, fontFamily:"inherit", marginBottom:10}}
-          />
+          <textarea
+  value={url}
+  onChange={e => setUrl(e.target.value)}
+  placeholder="https://maps.google.com/maps/place/your-restaurant..."
+  rows={3}
+  style={{width:"100%", background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.white, fontSize:13, fontFamily:"inherit", marginBottom:10, resize:"none", lineHeight:1.5}}
+/>
           {error && <div style={{color:C.red, fontSize:13, marginBottom:10}}>⚠️ {error}</div>}
           <button
             onClick={analyse}

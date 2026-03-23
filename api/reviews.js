@@ -101,12 +101,14 @@ module.exports = async function handler(req, res) {
     const startRes = await fetch('https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        startUrls: [{ url: googleMapsUrl }],
-        maxReviews: 100,
-        reviewsSort: 'newest',
-        language: 'en',
-      }),
+      const twelveMonthsAgo = new Date(Date.now() - 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+body: JSON.stringify({
+  startUrls: [{ url: googleMapsUrl }],
+  maxReviews: 150,
+  reviewsSort: 'newest',
+  language: 'en',
+  reviewsStartDate: twelveMonthsAgo,
+}),
     });
 
     if (!startRes.ok) {

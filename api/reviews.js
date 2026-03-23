@@ -58,7 +58,23 @@ module.exports = async function handler(req, res) {
 if (chMatch) {
   placeId = chMatch[0];
 }
-
+      if (!placeId) {
+      const cidMatch = placeUrl.match(/0x[a-f0-9]+:(0x[a-f0-9]+)/i);
+      if (cidMatch) {
+        try {
+          const cidHex = cidMatch[1];
+          // Convert hex CID to decimal string for Google API
+          const cidDecimal = BigInt(cidHex).toString();
+const cidRes = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?cid=${cidDecimal}&key=${GOOGLE_API_KEY}`);
+const cidData = await cidRes.json();
+if (cidData.result && cidData.result.place_id) {
+            placeId = cidData.result.place_id;
+          }
+        } catch (e) {
+          console.error("CID conversion failed", e);
+        }
+      }
+    }
 // Extract from data= parameter (format: 1s0x...:0x...)
 if (!placeId) {
   const dataMatch = placeUrl.match(/1s(0x[a-f0-9]+:[a-f0-9x]+)/i);

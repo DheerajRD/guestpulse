@@ -22,8 +22,7 @@ module.exports = async function handler(req, res) {
 
       if (status === 'SUCCEEDED') {
         const datasetId = statusData.data.defaultDatasetId;
-        const itemsUrl  = 'https://api.apify.com/v2/datasets/' + datasetId + '/items?token=' + APIFY_API_TOKEN + '&limit=150';
-        const itemsRes  = await fetch(itemsUrl);
+        const itemsRes  = await fetch('https://api.apify.com/v2/datasets/' + datasetId + '/items?token=' + APIFY_API_TOKEN + '&limit=150');
         const items     = await itemsRes.json();
         const reviews   = [];
 
@@ -75,31 +74,44 @@ module.exports = async function handler(req, res) {
 
     if (!placeId && placeUrl) {
 
-      // Method 1: ChIJ in URL
+      // Method 1: ChIJ format in URL
       const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
-      if (chMatch) placeId = chMatch[0];
+      if (chMatch) {
+        placeId = chMatch[0];
+        console.log('Method 1 found:', placeId);
+      }
 
       // Method 2: text search by name
       if (!placeId) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
         if (nameMatch) {
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+          console.log('Method 2 searching:', name);
           const r = await fetch('https://maps.googleapis.com/maps/api/place/textsearch/json?query=' + encodeURIComponent(name) + '&key=' + GOOGLE_API_KEY);
           const d = await r.json();
-          if (d.results && d.results.length > 0) placeId = d.results[0].place_id;
+          console.log('Method 2 status:', d.status, 'count:', d.results ? d.results.length : 0);
+          if (d.results && d.results.length > 0) {
+            placeId = d.results[0].place_id;
+            console.log('Method 2 found:', placeId);
+          }
         }
       }
 
-      // Method 3: nearby search with precise coords
+      // Method 3: nearby search with precise !3d !4d coords
       if (!placeId) {
         const latMatch  = placeUrl.match(/!3d(-?\d+\.\d+)/);
         const lngMatch  = placeUrl.match(/!4d(-?\d+\.\d+)/);
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
         if (latMatch && lngMatch && nameMatch) {
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+          console.log('Method 3 searching near:', latMatch[1], lngMatch[1]);
           const r = await fetch('https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' + latMatch[1] + ',' + lngMatch[1] + '&radius=100&keyword=' + encodeURIComponent(name) + '&key=' + GOOGLE_API_KEY);
           const d = await r.json();
-          if (d.results && d.results.length > 0) placeId = d.results[0].place_id;
+          console.log('Method 3 status:', d.status, 'count:', d.results ? d.results.length : 0);
+          if (d.results && d.results.length > 0) {
+            placeId = d.results[0].place_id;
+            console.log('Method 3 found:', placeId);
+          }
         }
       }
 
@@ -109,30 +121,51 @@ module.exports = async function handler(req, res) {
         const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
         if (coordMatch && nameMatch) {
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          const r = await fetch('https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' + coordMatch[1] + ',' + coordMatch[2] + '&radius=200&keyword=' + encodeURIComponent(name) + '&key=' + GOOGLE_API_KEY);
+          console.log('Method 4 searching near:', coordMatch[1], coordMatch[2]);
+          const r = await fetch('https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' + coordMatch[1] + ',' + coordMatch[2] + '&radius=300&keyword=' + encodeURIComponent(name) + '&key=' + GOOGLE_API_KEY);
           const d = await r.json();
-          if (d.results && d.results.length > 0) placeId = d.results[0].place_id;
+          console.log('Method 4 status:', d.status, 'count:', d.results ? d.results.length : 0);
+          if (d.results && d.results.length > 0) {
+            placeId = d.results[0].place_id;
+            console.log('Method 4 found:', placeId);
+          }
+        }
+      }
+
+      // Method 5: text search with location bias
+      if (!placeId) {
+        const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
+        const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (nameMatch && coordMatch) {
+          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+          console.log('Method 5 searching with bias:', name);
+          const r = await fetch('https://maps.googleapis.com/maps/api/place/textsearch/json?query=' + encodeURIComponent(name) + '&location=' + coordMatch[1] + ',' + coordMatch[2] + '&radius=500&key=' + GOOGLE_API_KEY);
+          const d = await r.json();
+          console.log('Method 5 status:', d.status, 'count:', d.results ? d.results.length : 0);
+          if (d.results && d.results.length > 0) {
+            placeId = d.results[0].place_id;
+            console.log('Method 5 found:', placeId);
+          }
         }
       }
     }
 
     if (!placeId) {
-      return res.status(400).json({ error: 'Could not find restaurant. Paste the full Google Maps URL.' });
+      return res.status(400).json({ error: 'Could not find restaurant. Please try again.' });
     }
 
-    // Get restaurant info from Google
+    // Get restaurant details
     const detRes  = await fetch('https://maps.googleapis.com/maps/api/place/details/json?place_id=' + placeId + '&fields=name,rating,user_ratings_total,formatted_address&key=' + GOOGLE_API_KEY);
     const detData = await detRes.json();
 
     if (detData.status === 'REQUEST_DENIED') return res.status(403).json({ error: 'Google API blocked. Check billing.' });
     if (detData.status !== 'OK') return res.status(404).json({ error: 'Google API error: ' + detData.status });
 
-    const place = detData.result;
-
-    // Build clean Google Maps URL for Apify using place_id
+    const place    = detData.result;
     const cleanUrl = 'https://www.google.com/maps/place/?q=place_id:' + placeId;
+    console.log('Apify URL:', cleanUrl);
 
-    // Start Apify run
+    // Start Apify
     const startRes = await fetch('https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN, {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -146,12 +179,15 @@ module.exports = async function handler(req, res) {
 
     if (!startRes.ok) {
       const errText = await startRes.text();
+      console.log('Apify start failed:', errText);
       return res.status(500).json({ error: 'Apify Error: ' + errText.substring(0, 200) });
     }
 
     const startData = await startRes.json();
     const newRunId  = startData.data && startData.data.id;
     if (!newRunId) return res.status(500).json({ error: 'No run ID from Apify' });
+
+    console.log('Apify started:', newRunId);
 
     return res.status(200).json({
       status: 'started',

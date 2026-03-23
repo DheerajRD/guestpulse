@@ -47,7 +47,7 @@ module.exports = async function handler(req, res) {
             }
           }
 
-          // ALSO check flat format (not fallback)
+          // ALSO handle flat format
           if (item.text && item.text.trim().length > 10) {
             reviews.push({
               id: reviews.length + 1,
@@ -78,27 +78,49 @@ module.exports = async function handler(req, res) {
     }
 
     // --------------------------------------------------
-    // EXTRACT PLACE ID (YOUR FULL LOGIC - RESTORED)
+    // EXTRACT PLACE ID (FIXED + ROBUST)
     // --------------------------------------------------
     let placeId = directId || null;
 
     if (!placeId && placeUrl) {
 
-      // Method 1: ChIJ in URL
-      const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
-      if (chMatch) {
-        placeId = chMatch[0];
-        console.log('Method 1 found:', placeId);
+      // Method 0: direct place_id
+      const directMatch = placeUrl.match(/place_id:([a-zA-Z0-9_-]+)/);
+      if (directMatch) {
+        placeId = directMatch[1];
+        console.log('Method 0 (direct):', placeId);
       }
 
-      // Method 2: text search
+      // Extract coordinates for bias
+      const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      const lat = coordMatch ? coordMatch[1] : null;
+      const lng = coordMatch ? coordMatch[2] : null;
+
+      // Method 1: ChIJ
+      if (!placeId) {
+        const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
+        if (chMatch) {
+          placeId = chMatch[0];
+          console.log('Method 1 found:', placeId);
+        }
+      }
+
+      // Method 2: text search WITH bias
       if (!placeId) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
+
         if (nameMatch) {
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+
+          let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`;
+
+          if (lat && lng) {
+            url += `&location=${lat},${lng}&radius=500`;
+          }
+
           console.log('Method 2 searching:', name);
 
-          const r = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`);
+          const r = await fetch(url);
           const d = await r.json();
 
           if (d.results && d.results.length > 0) {
@@ -108,7 +130,7 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 3: !3d !4d coords
+      // Method 3: !3d !4d
       if (!placeId) {
         const latMatch  = placeUrl.match(/!3d(-?\d+\.\d+)/);
         const lngMatch  = placeUrl.match(/!4d(-?\d+\.\d+)/);
@@ -117,7 +139,10 @@ module.exports = async function handler(req, res) {
         if (latMatch && lngMatch && nameMatch) {
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
 
-          const r = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latMatch[1]},${lngMatch[1]}&radius=100&keyword=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`);
+          const r = await fetch(
+            `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latMatch[1]},${lngMatch[1]}&radius=100&keyword=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`
+          );
+
           const d = await r.json();
 
           if (d.results && d.results.length > 0) {
@@ -128,14 +153,16 @@ module.exports = async function handler(req, res) {
       }
 
       // Method 4: @ coords
-      if (!placeId) {
-        const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
+      if (!placeId && lat && lng) {
+        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
 
-        if (coordMatch && nameMatch) {
+        if (nameMatch) {
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
 
-          const r = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${coordMatch[1]},${coordMatch[2]}&radius=300&keyword=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`);
+          const r = await fetch(
+            `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=300&keyword=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`
+          );
+
           const d = await r.json();
 
           if (d.results && d.results.length > 0) {
@@ -145,15 +172,17 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 5: text search with location bias
-      if (!placeId) {
-        const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
-        const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      // Method 5: strong bias fallback
+      if (!placeId && lat && lng) {
+        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
 
-        if (nameMatch && coordMatch) {
+        if (nameMatch) {
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
 
-          const r = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(name)}&location=${coordMatch[1]},${coordMatch[2]}&radius=500&key=${GOOGLE_API_KEY}`);
+          const r = await fetch(
+            `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(name)}&location=${lat},${lng}&radius=1000&key=${GOOGLE_API_KEY}`
+          );
+
           const d = await r.json();
 
           if (d.results && d.results.length > 0) {
@@ -169,9 +198,12 @@ module.exports = async function handler(req, res) {
     }
 
     // --------------------------------------------------
-    // GET RESTAURANT DETAILS + CITY
+    // GET RESTAURANT DETAILS
     // --------------------------------------------------
-    const detRes  = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,formatted_address&key=${GOOGLE_API_KEY}`);
+    const detRes = await fetch(
+      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,formatted_address&key=${GOOGLE_API_KEY}`
+    );
+
     const detData = await detRes.json();
 
     if (detData.status !== 'OK') {

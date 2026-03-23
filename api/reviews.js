@@ -16,12 +16,8 @@ module.exports = async function handler(req, res) {
       
       if (sData.data?.status === 'SUCCEEDED') {
         const items = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}`).then(r => r.json());
-        
-        // Flatten the reviews from Apify's structure so the frontend can read them
-        const cleanedReviews = items.flatMap(item => {
-          if (item.reviews && Array.isArray(item.reviews)) return item.reviews;
-          return [item];
-        }).filter(r => r.text && r.text.length > 5)
+        const cleanedReviews = items.flatMap(item => (item.reviews || [item]))
+          .filter(r => r.text && r.text.length > 5)
           .map((r, index) => ({
             id: index + 1,
             author: r.name || r.reviewerName || 'Guest',
@@ -30,11 +26,7 @@ module.exports = async function handler(req, res) {
             time: r.publishedAtDate || 'Recent'
           }));
 
-        return res.status(200).json({ 
-          status: 'done', 
-          reviews: cleanedReviews.slice(0, 100),
-          total: cleanedReviews.length 
-        });
+        return res.status(200).json({ status: 'done', reviews: cleanedReviews.slice(0, 100) });
       }
       return res.status(200).json({ status: 'running' });
     }
@@ -43,46 +35,37 @@ module.exports = async function handler(req, res) {
     let placeId = null;
     let finalUrl = placeUrl;
 
-    // A. Expand Short Links (With safety guard for the 'includes' error)
     if (placeUrl && typeof placeUrl === 'string' && placeUrl.includes('goo.gl')) {
       try {
-        const expand = await fetch(placeUrl, { 
-          redirect: 'follow', 
-          headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'} 
-        });
+        const expand = await fetch(placeUrl, { redirect: 'follow', headers: {'User-Agent': 'Mozilla/5.0'} });
         finalUrl = expand.url;
-      } catch (e) {
-        console.error("Expand failed:", e);
-      }
+      } catch (e) { console.error("Expand failed:", e); }
     }
 
-    // B. Detection sequence: PlaceID -> CID
     const chMatch = finalUrl?.match(/ChI[a-zA-Z0-9_-]{24}/);
     if (chMatch) {
       placeId = chMatch[0];
     } else {
       const cidMatch = finalUrl?.match(/0x[a-f0-9]+:(0x[a-f0-9]+)/i);
       if (cidMatch) {
-        try {
-          const cidDec = BigInt(cidMatch[1]).toString();
-          const d = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?cid=${cidDec}&key=${GOOGLE_API_KEY}`).then(r => r.json());
-          placeId = d.result?.place_id;
-        } catch (e) { console.error("CID conversion failed", e); }
+        const cidDec = BigInt(cidMatch[1]).toString();
+        const d = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?cid=${cidDec}&key=${GOOGLE_API_KEY}`).then(r => r.json());
+        placeId = d.result?.place_id;
       }
     }
 
-    // C. Get the best URL for Apify
     let apifyTargetUrl = finalUrl;
     let displayName = "Location";
-
     if (placeId) {
       const details = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,url&key=${GOOGLE_API_KEY}`).then(r => r.json());
       apifyTargetUrl = details.result?.url || finalUrl;
       displayName = details.result?.name || displayName;
     }
 
-    // D. Trigger Apify
-    const apifyRes = await fetch(`https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${APIFY_API_TOKEN}`, {
+    // DEBUG: Clean the token to prevent hidden space errors
+    const cleanToken = APIFY_API_TOKEN?.trim();
+
+    const apifyRes = await fetch(`https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${cleanToken}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -94,8 +77,13 @@ module.exports = async function handler(req, res) {
 
     const apifyData = await apifyRes.json();
     
-    if (!apifyData.data?.id) {
-      return res.status(500).json({ error: 'Apify failed to start. Please check your API Token.' });
+    // IF THIS FAILS, LOG THE EXACT APIFY ERROR
+    if (!apifyRes.ok) {
+      console.error("Apify Error Detail:", JSON.stringify(apifyData));
+      return res.status(apifyRes.status).json({ 
+        error: `Apify Error: ${apifyData.error?.message || 'Check Token/Permissions'}`,
+        detail: apifyData
+      });
     }
 
     return res.status(200).json({ 

@@ -47,7 +47,7 @@ module.exports = async function handler(req, res) {
             }
           }
 
-          // fallback if actor returns flat format
+          // ALSO check flat format (not fallback)
           if (item.text && item.text.trim().length > 10) {
             reviews.push({
               id: reviews.length + 1,
@@ -78,7 +78,7 @@ module.exports = async function handler(req, res) {
     }
 
     // --------------------------------------------------
-    // EXTRACT PLACE ID FROM GOOGLE URL
+    // EXTRACT PLACE ID (YOUR FULL LOGIC - RESTORED)
     // --------------------------------------------------
     let placeId = directId || null;
 
@@ -86,56 +86,108 @@ module.exports = async function handler(req, res) {
 
       // Method 1: ChIJ in URL
       const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
-      if (chMatch) placeId = chMatch[0];
+      if (chMatch) {
+        placeId = chMatch[0];
+        console.log('Method 1 found:', placeId);
+      }
 
-      // Method 2: extract name and search
+      // Method 2: text search
       if (!placeId) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
-
         if (nameMatch) {
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+          console.log('Method 2 searching:', name);
 
           const r = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`);
           const d = await r.json();
 
           if (d.results && d.results.length > 0) {
             placeId = d.results[0].place_id;
+            console.log('Method 2 found:', placeId);
+          }
+        }
+      }
+
+      // Method 3: !3d !4d coords
+      if (!placeId) {
+        const latMatch  = placeUrl.match(/!3d(-?\d+\.\d+)/);
+        const lngMatch  = placeUrl.match(/!4d(-?\d+\.\d+)/);
+        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
+
+        if (latMatch && lngMatch && nameMatch) {
+          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+
+          const r = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${latMatch[1]},${lngMatch[1]}&radius=100&keyword=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`);
+          const d = await r.json();
+
+          if (d.results && d.results.length > 0) {
+            placeId = d.results[0].place_id;
+            console.log('Method 3 found:', placeId);
+          }
+        }
+      }
+
+      // Method 4: @ coords
+      if (!placeId) {
+        const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
+
+        if (coordMatch && nameMatch) {
+          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+
+          const r = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${coordMatch[1]},${coordMatch[2]}&radius=300&keyword=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`);
+          const d = await r.json();
+
+          if (d.results && d.results.length > 0) {
+            placeId = d.results[0].place_id;
+            console.log('Method 4 found:', placeId);
+          }
+        }
+      }
+
+      // Method 5: text search with location bias
+      if (!placeId) {
+        const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
+        const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+
+        if (nameMatch && coordMatch) {
+          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+
+          const r = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(name)}&location=${coordMatch[1]},${coordMatch[2]}&radius=500&key=${GOOGLE_API_KEY}`);
+          const d = await r.json();
+
+          if (d.results && d.results.length > 0) {
+            placeId = d.results[0].place_id;
+            console.log('Method 5 found:', placeId);
           }
         }
       }
     }
 
     if (!placeId) {
-      return res.status(400).json({ error: 'Could not detect restaurant. Try another link.' });
+      return res.status(400).json({ error: 'Could not find restaurant. Please try again.' });
     }
 
     // --------------------------------------------------
-    // GET RESTAURANT DETAILS (AUTO NAME + CITY)
+    // GET RESTAURANT DETAILS + CITY
     // --------------------------------------------------
-    const detailsRes = await fetch(
-      `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,formatted_address&key=${GOOGLE_API_KEY}`
-    );
+    const detRes  = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,formatted_address&key=${GOOGLE_API_KEY}`);
+    const detData = await detRes.json();
 
-    const detailsData = await detailsRes.json();
-
-    if (detailsData.status !== 'OK') {
+    if (detData.status !== 'OK') {
       return res.status(500).json({ error: 'Google Place Details failed.' });
     }
 
-    const place = detailsData.result;
+    const place = detData.result;
 
-    const restaurantName = place.name || 'Unknown Restaurant';
-    const fullAddress    = place.formatted_address || '';
+    const addressParts = place.formatted_address.split(',');
+    const restaurantCity = addressParts.length > 1 ? addressParts[1].trim() : '';
 
-    // safer city extraction
-    const addressParts = fullAddress.split(',');
-    const restaurantCity = addressParts.length > 1 ? addressParts[1].trim() : 'Unknown City';
-
-    // --------------------------------------------------
-    // START APIFY GOOGLE REVIEWS ACTOR
-    // --------------------------------------------------
     const cleanUrl = `https://www.google.com/maps/place/?q=place_id:${placeId}`;
 
+    // --------------------------------------------------
+    // START APIFY
+    // --------------------------------------------------
     const startRes = await fetch(`https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${APIFY_API_TOKEN}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -155,22 +207,21 @@ module.exports = async function handler(req, res) {
 
     const newRunId = startData.data.id;
 
-    // --------------------------------------------------
-    // RESPONSE (READY FOR YELP + TRIPADVISOR NEXT)
-    // --------------------------------------------------
     return res.status(200).json({
       status: 'started',
       runId: newRunId,
       restaurant: {
-        name: restaurantName,
+        name: place.name,
         city: restaurantCity,
-        address: fullAddress,
+        address: place.formatted_address,
         rating: place.rating,
-        totalReviews: place.user_ratings_total
+        totalReviews: place.user_ratings_total,
+        placeId
       }
     });
 
   } catch (err) {
+    console.error('Error:', err.message);
     return res.status(500).json({ error: err.message || 'Server error' });
   }
 };

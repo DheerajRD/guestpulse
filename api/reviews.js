@@ -17,7 +17,7 @@ module.exports = async function handler(req, res) {
       if (sData.data?.status === 'SUCCEEDED') {
         const items = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}`).then(r => r.json());
         
-        // Flatten and clean the reviews from the Apify structure
+        // Flatten the reviews from Apify's structure so the frontend can read them
         const cleanedReviews = items.flatMap(item => {
           if (item.reviews && Array.isArray(item.reviews)) return item.reviews;
           return [item];
@@ -43,12 +43,12 @@ module.exports = async function handler(req, res) {
     let placeId = null;
     let finalUrl = placeUrl;
 
-    // A. Expand Short Links (with Safety Guard to prevent .includes error)
+    // A. Expand Short Links (With safety guard for the 'includes' error)
     if (placeUrl && typeof placeUrl === 'string' && placeUrl.includes('goo.gl')) {
       try {
         const expand = await fetch(placeUrl, { 
           redirect: 'follow', 
-          headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0'} 
+          headers: {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36'} 
         });
         finalUrl = expand.url;
       } catch (e) {
@@ -71,7 +71,7 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    // C. Get the best URL and Name for Apify
+    // C. Get the best URL for Apify
     let apifyTargetUrl = finalUrl;
     let displayName = "Location";
 
@@ -81,7 +81,7 @@ module.exports = async function handler(req, res) {
       displayName = details.result?.name || displayName;
     }
 
-    // D. Trigger Apify Actor
+    // D. Trigger Apify
     const apifyRes = await fetch(`https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${APIFY_API_TOKEN}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -95,7 +95,7 @@ module.exports = async function handler(req, res) {
     const apifyData = await apifyRes.json();
     
     if (!apifyData.data?.id) {
-      return res.status(500).json({ error: 'Apify failed to start. Check your API token.' });
+      return res.status(500).json({ error: 'Apify failed to start. Please check your API Token.' });
     }
 
     return res.status(200).json({ 

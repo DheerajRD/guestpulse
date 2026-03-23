@@ -55,9 +55,27 @@ module.exports = async function handler(req, res) {
 
     if (!placeId && placeUrl) {
       const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
-      if (chMatch) {
-        placeId = chMatch[0];
-      } else {
+if (chMatch) {
+  placeId = chMatch[0];
+}
+
+// Extract from data= parameter (format: 1s0x...:0x...)
+if (!placeId) {
+  const dataMatch = placeUrl.match(/1s(0x[a-f0-9]+:[a-f0-9x]+)/i);
+  if (dataMatch) {
+    // Convert hex place ID to search
+    const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+    const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
+    if (nameMatch && coordMatch) {
+      const name = decodeURIComponent(nameMatch[1].replace(/\+/g,' ')).trim();
+      const r = await fetch('https://maps.googleapis.com/maps/api/place/nearbysearch/json?location='+coordMatch[1]+','+coordMatch[2]+'&radius=200&keyword='+encodeURIComponent(name)+'&key='+GOOGLE_API_KEY);
+      const d = await r.json();
+      if (d.results && d.results.length > 0) placeId = d.results[0].place_id;
+    }
+  }
+}
+
+if (!placeId) {
         const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
         const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
         if (nameMatch && coordMatch) {

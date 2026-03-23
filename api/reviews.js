@@ -2,57 +2,53 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
   const { placeUrl, placeId: directId, runId, action } = req.body || {};
-  const GOOGLE_API_KEY  = process.env.GOOGLE_API_KEY;
+  const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
   const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
 
-  if (!GOOGLE_API_KEY)  return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
+  if (!GOOGLE_API_KEY) return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
   if (!APIFY_API_TOKEN) return res.status(500).json({ error: 'APIFY_API_TOKEN not configured' });
 
   try {
-
     // ── ACTION: check status of existing Apify run ────────────
     if (action === 'check' && runId) {
-      const statusRes  = await fetch('https://api.apify.com/v2/actor-runs/' + runId + '?token=' + APIFY_API_TOKEN);
+      const statusRes = await fetch('https://api.apify.com/v2/actor-runs/' + runId + '?token=' + APIFY_API_TOKEN);
       const statusData = await statusRes.json();
-      const status     = statusData.data && statusData.data.status;
+      const status = statusData.data && statusData.data.status;
 
       if (status === 'SUCCEEDED') {
         const itemsRes = await fetch('https://api.apify.com/v2/actor-runs/' + runId + '/dataset/items?token=' + APIFY_API_TOKEN + '&limit=150');
-        const items    = await itemsRes.json();
-        const reviews  = [];
+        const items = await itemsRes.json();
+        const reviews = [];
 
-        for (let i = 0; i < items.length; i++) {
-          const item = items[i];
-          const arr  = item.reviews || [];
-          for (let j = 0; j < arr.length; j++) {
-            const r = arr[j];
+        for (const item of items) {
+          const arr = item.reviews || [];
+          for (const r of arr) {
             if (r.text && r.text.trim().length > 10) {
               reviews.push({
-                id:     reviews.length + 1,
+                id: reviews.length + 1,
                 author: r.name || 'Anonymous',
                 rating: r.stars || r.rating || 0,
-                text:   r.text.trim(),
-                time:   r.publishedAtDate || '',
+                text: r.text.trim(),
+                time: r.publishedAtDate || '',
               });
             }
           }
         }
 
-        // Flat structure fallback
         if (reviews.length === 0) {
-          for (let i = 0; i < items.length; i++) {
-            const item = items[i];
+          for (const item of items) {
             if (item.text && item.text.trim().length > 10) {
               reviews.push({
-                id:     reviews.length + 1,
+                id: reviews.length + 1,
                 author: item.name || item.reviewerName || 'Anonymous',
                 rating: item.stars || item.rating || 0,
-                text:   item.text.trim(),
-                time:   item.publishedAtDate || '',
+                text: item.text.trim(),
+                time: item.publishedAtDate || '',
               });
             }
           }
@@ -65,7 +61,6 @@ module.exports = async function handler(req, res) {
       if (status === 'FAILED' || status === 'ABORTED') {
         return res.status(500).json({ error: 'Apify run failed. Please try again.' });
       }
-
       return res.status(200).json({ status: 'running' });
     }
 
@@ -73,58 +68,52 @@ module.exports = async function handler(req, res) {
     let placeId = directId || null;
 
     if (!placeId && placeUrl) {
+      let finalUrl = placeUrl;
 
-      // Method 1: ChIJ format in URL
-      const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
-      if (chMatch) placeId = chMatch[0];
+      // 1. Expand Short URLs (e.g., goo.gl/maps)
+      if (placeUrl.includes('goo.gl/') || placeUrl.includes('maps.app.goo.gl')) {
+        try {
+          const res = await fetch(placeUrl, { method: 'GET', redirect: 'follow' });
+          finalUrl = res.url;
+        } catch (e) {
+          console.error("Short URL expansion failed", e);
+        }
+      }
 
-      // Method 2: precise !3d !4d coordinates + name
+      // 2. Try ChIJ ID directly from URL
+      const chMatch = finalUrl.match(/ChI[a-zA-Z0-9_-]+/);
+      if (chMatch) {
+        placeId = chMatch[0];
+      }
+
+      // 3. Try CID extraction
       if (!placeId) {
-        const latMatch  = placeUrl.match(/!3d(-?\d+\.\d+)/);
-        const lngMatch  = placeUrl.match(/!4d(-?\d+\.\d+)/);
-        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
+        const cidMatch = finalUrl.match(/0x[a-f0-9]+:(0x[a-f0-9]+)/i);
+        if (cidMatch) {
+          try {
+            const cidDecimal = BigInt(cidMatch[1]).toString();
+            const cidRes = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?cid=${cidDecimal}&key=${GOOGLE_API_KEY}`);
+            const cidData = await cidRes.json();
+            if (cidData.result && cidData.result.place_id) {
+              placeId = cidData.result.place_id;
+            }
+          } catch (e) {
+            console.error("CID lookup failed", e);
+          }
+        }
+      }
+
+      // 4. Fallback: Coordinate + Name matching
+      if (!placeId) {
+        const latMatch = finalUrl.match(/!3d(-?\d+\.\d+)/) || finalUrl.match(/@(-?\d+\.\d+)/);
+        const lngMatch = finalUrl.match(/!4d(-?\d+\.\d+)/) || finalUrl.match(/@(?:.+),(-?\d+\.\d+)/);
+        const nameMatch = finalUrl.match(/\/place\/([^/@?#]+)/);
+
         if (latMatch && lngMatch && nameMatch) {
-          const lat  = latMatch[1];
-          const lng  = lngMatch[1];
+          const lat = latMatch[1];
+          const lng = lngMatch[1];
           const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          const r = await fetch(
-            'https://maps.googleapis.com/maps/api/place/nearbysearch/json' +
-            '?location=' + lat + ',' + lng +
-            '&radius=100&keyword=' + encodeURIComponent(name) +
-            '&key=' + GOOGLE_API_KEY
-          );
-          const d = await r.json();
-          if (d.results && d.results.length > 0) placeId = d.results[0].place_id;
-        }
-      }
-
-      // Method 3: @ coordinates + name
-      if (!placeId) {
-        const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-        const nameMatch  = placeUrl.match(/\/place\/([^/@?#]+)/);
-        if (coordMatch && nameMatch) {
-          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          const r = await fetch(
-            'https://maps.googleapis.com/maps/api/place/nearbysearch/json' +
-            '?location=' + coordMatch[1] + ',' + coordMatch[2] +
-            '&radius=200&keyword=' + encodeURIComponent(name) +
-            '&key=' + GOOGLE_API_KEY
-          );
-          const d = await r.json();
-          if (d.results && d.results.length > 0) placeId = d.results[0].place_id;
-        }
-      }
-
-      // Method 4: text search by name only
-      if (!placeId) {
-        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
-        if (nameMatch) {
-          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          const r = await fetch(
-            'https://maps.googleapis.com/maps/api/place/textsearch/json' +
-            '?query=' + encodeURIComponent(name) +
-            '&key=' + GOOGLE_API_KEY
-          );
+          const r = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=100&keyword=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`);
           const d = await r.json();
           if (d.results && d.results.length > 0) placeId = d.results[0].place_id;
         }
@@ -132,66 +121,51 @@ module.exports = async function handler(req, res) {
     }
 
     if (!placeId) {
-      return res.status(400).json({ error: 'Could not find restaurant. Paste the full Google Maps URL.' });
+      return res.status(400).json({ error: 'Could not detect location. Please use a full Google Maps URL.' });
     }
 
-    // Get restaurant info from Google
-    const detRes  = await fetch(
-      'https://maps.googleapis.com/maps/api/place/details/json' +
-      '?place_id=' + placeId +
-      '&fields=name,rating,user_ratings_total,formatted_address,url' +
-      '&key=' + GOOGLE_API_KEY
-    );
+    // Get final details from Google
+    const detRes = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,formatted_address,url&key=${GOOGLE_API_KEY}`);
     const detData = await detRes.json();
 
-    if (detData.status === 'REQUEST_DENIED') {
-      return res.status(403).json({ error: 'Google API blocked. Check billing at console.cloud.google.com' });
-    }
     if (detData.status !== 'OK') {
       return res.status(404).json({ error: 'Google API error: ' + detData.status });
     }
 
-    const place         = detData.result;
+    const place = detData.result;
     const googleMapsUrl = place.url || placeUrl;
 
-    // Start Apify run
-    const startRes = await fetch(
-      'https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN,
-      {
-        method:  'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          startUrls:   [{ url: googleMapsUrl }],
-          maxReviews:  100,
-          reviewsSort: 'newest',
-          language:    'en',
-        }),
-      }
-    );
-
-    if (!startRes.ok) {
-      const errText = await startRes.text();
-      return res.status(500).json({ error: 'Apify failed to start: ' + errText.substring(0, 100) });
-    }
+    // Start Apify Crawler
+    const startRes = await fetch('https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        startUrls: [{ url: googleMapsUrl }],
+        maxReviews: 100,
+        reviewsSort: 'newest',
+        language: 'en',
+      }),
+    });
 
     const startData = await startRes.json();
-    const newRunId  = startData.data && startData.data.id;
-    if (!newRunId) return res.status(500).json({ error: 'No run ID from Apify' });
+    const newRunId = startData.data && startData.data.id;
+
+    if (!newRunId) return res.status(500).json({ error: 'Failed to start Apify run' });
 
     return res.status(200).json({
       status: 'started',
-      runId:  newRunId,
+      runId: newRunId,
       restaurant: {
-        name:         place.name,
-        address:      place.formatted_address,
-        rating:       place.rating,
+        name: place.name,
+        address: place.formatted_address,
+        rating: place.rating,
         totalReviews: place.user_ratings_total,
-        placeId:      placeId,
+        placeId: placeId,
       },
     });
 
   } catch (err) {
-    console.error('reviews.js error:', err.message);
-    return res.status(500).json({ error: err.message || 'Server error' });
+    console.error('Handler Error:', err);
+    return res.status(500).json({ error: err.message });
   }
 };

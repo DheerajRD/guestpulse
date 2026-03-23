@@ -10,162 +10,89 @@ module.exports = async function handler(req, res) {
   const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
   const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
 
-  if (!GOOGLE_API_KEY) return res.status(500).json({ error: 'GOOGLE_API_KEY not configured' });
-  if (!APIFY_API_TOKEN) return res.status(500).json({ error: 'APIFY_API_TOKEN not configured' });
-
   try {
-    // ── ACTION: check status of existing Apify run ────────────
+    // 1. Check Apify Status
     if (action === 'check' && runId) {
-      const statusRes = await fetch('https://api.apify.com/v2/actor-runs/' + runId + '?token=' + APIFY_API_TOKEN);
+      const statusRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}?token=${APIFY_API_TOKEN}`);
       const statusData = await statusRes.json();
-      const status = statusData.data && statusData.data.status;
+      const status = statusData.data?.status;
 
       if (status === 'SUCCEEDED') {
-        const itemsRes = await fetch('https://api.apify.com/v2/actor-runs/' + runId + '/dataset/items?token=' + APIFY_API_TOKEN + '&limit=150');
+        const itemsRes = await fetch(`https://api.apify.com/v2/actor-runs/${runId}/dataset/items?token=${APIFY_API_TOKEN}&limit=150`);
         const items = await itemsRes.json();
-        const reviews = [];
-
-        for (const item of items) {
-          const arr = item.reviews || [];
-          for (const r of arr) {
-            if (r.text && r.text.trim().length > 10) {
-              reviews.push({
-                id: reviews.length + 1,
-                author: r.name || 'Anonymous',
-                rating: r.stars || r.rating || 0,
-                text: r.text.trim(),
-                time: r.publishedAtDate || '',
-              });
-            }
-          }
-        }
-
-        if (reviews.length === 0) {
-          for (const item of items) {
-            if (item.text && item.text.trim().length > 10) {
-              reviews.push({
-                id: reviews.length + 1,
-                author: item.name || item.reviewerName || 'Anonymous',
-                rating: item.stars || item.rating || 0,
-                text: item.text.trim(),
-                time: item.publishedAtDate || '',
-              });
-            }
-          }
-        }
-
-        if (reviews.length === 0) return res.status(404).json({ error: 'No reviews found.' });
-        return res.status(200).json({ status: 'done', reviews, total: reviews.length });
-      }
-
-      if (status === 'FAILED' || status === 'ABORTED') {
-        return res.status(500).json({ error: 'Apify run failed. Please try again.' });
+        return res.status(200).json({ status: 'done', reviews: items, total: items.length });
       }
       return res.status(200).json({ status: 'running' });
     }
 
-    // ── ACTION: start new run ─────────────────────────────────
+    // 2. Advanced URL Detection
     let placeId = directId || null;
+    let finalUrl = placeUrl;
 
     if (!placeId && placeUrl) {
-      let finalUrl = placeUrl;
-
-      // 1. Expand Short URLs (e.g., goo.gl/maps)
-      if (placeUrl.includes('goo.gl/') || placeUrl.includes('maps.app.goo.gl')) {
+      // Follow redirects for short links (goo.gl)
+      if (placeUrl.includes('goo.gl') || placeUrl.includes('maps.app.goo.gl')) {
         try {
-          const res = await fetch(placeUrl, { method: 'GET', redirect: 'follow' });
-          finalUrl = res.url;
-        } catch (e) {
-          console.error("Short URL expansion failed", e);
-        }
+          const response = await fetch(placeUrl, { 
+            method: 'GET', 
+            redirect: 'follow',
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0 Safari/537.36' }
+          });
+          finalUrl = response.url;
+        } catch (e) { console.error("Redirect expansion failed", e); }
       }
 
-      // 2. Try ChIJ ID directly from URL
-      const chMatch = finalUrl.match(/ChI[a-zA-Z0-9_-]+/);
-      if (chMatch) {
-        placeId = chMatch[0];
-      }
+      // Try Place ID (ChIJ)
+      const chMatch = finalUrl.match(/ChI[a-zA-Z0-9_-]{24}/);
+      if (chMatch) placeId = chMatch[0];
 
-      // 3. Try CID extraction
+      // Try CID (Hex or ludocid)
       if (!placeId) {
-        const cidMatch = finalUrl.match(/0x[a-f0-9]+:(0x[a-f0-9]+)/i);
+        const cidMatch = finalUrl.match(/0x[a-f0-9]+:(0x[a-f0-9]+)/i) || finalUrl.match(/ludocid=([0-9]+|0x[a-f0-9]+)/);
         if (cidMatch) {
-          try {
-            const cidDecimal = BigInt(cidMatch[1]).toString();
-            const cidRes = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?cid=${cidDecimal}&key=${GOOGLE_API_KEY}`);
-            const cidData = await cidRes.json();
-            if (cidData.result && cidData.result.place_id) {
-              placeId = cidData.result.place_id;
-            }
-          } catch (e) {
-            console.error("CID lookup failed", e);
-          }
+          const rawCid = cidMatch[1];
+          const cidDecimal = rawCid.startsWith('0x') ? BigInt(rawCid).toString() : rawCid;
+          const cidRes = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?cid=${cidDecimal}&key=${GOOGLE_API_KEY}`);
+          const cidData = await cidRes.json();
+          if (cidData.result?.place_id) placeId = cidData.result.place_id;
         }
       }
 
-      // 4. Fallback: Coordinate + Name matching
+      // Fallback: Coordinates
       if (!placeId) {
-        const latMatch = finalUrl.match(/!3d(-?\d+\.\d+)/) || finalUrl.match(/@(-?\d+\.\d+)/);
-        const lngMatch = finalUrl.match(/!4d(-?\d+\.\d+)/) || finalUrl.match(/@(?:.+),(-?\d+\.\d+)/);
-        const nameMatch = finalUrl.match(/\/place\/([^/@?#]+)/);
-
-        if (latMatch && lngMatch && nameMatch) {
-          const lat = latMatch[1];
-          const lng = lngMatch[1];
-          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          const r = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&radius=100&keyword=${encodeURIComponent(name)}&key=${GOOGLE_API_KEY}`);
-          const d = await r.json();
-          if (d.results && d.results.length > 0) placeId = d.results[0].place_id;
+        const geo = finalUrl.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/) || finalUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+        if (geo) {
+          const search = await fetch(`https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${geo[1]},${geo[2]}&radius=50&key=${GOOGLE_API_KEY}`).then(r => r.json());
+          if (search.results?.length > 0) placeId = search.results[0].place_id;
         }
       }
     }
 
-    if (!placeId) {
-      return res.status(400).json({ error: 'Could not detect location. Please use a full Google Maps URL.' });
-    }
+    if (!placeId) return res.status(400).json({ error: 'Detection failed. Please use a full desktop URL.' });
 
-    // Get final details from Google
-    const detRes = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,rating,user_ratings_total,formatted_address,url&key=${GOOGLE_API_KEY}`);
-    const detData = await detRes.json();
+    // 3. Get clean URL for Apify
+    const details = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,url,rating&key=${GOOGLE_API_KEY}`).then(r => r.json());
+    const targetUrl = details.result?.url || finalUrl;
 
-    if (detData.status !== 'OK') {
-      return res.status(404).json({ error: 'Google API error: ' + detData.status });
-    }
-
-    const place = detData.result;
-    const googleMapsUrl = place.url || placeUrl;
-
-    // Start Apify Crawler
-    const startRes = await fetch('https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN, {
+    // 4. Start Apify Scraper (Actor Xb8osYTtOjlsgI6k9)
+    const apifyRes = await fetch(`https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=${APIFY_API_TOKEN}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        startUrls: [{ url: googleMapsUrl }],
+        startUrls: [{ url: targetUrl }],
         maxReviews: 100,
-        reviewsSort: 'newest',
         language: 'en',
       }),
     });
 
-    const startData = await startRes.json();
-    const newRunId = startData.data && startData.data.id;
-
-    if (!newRunId) return res.status(500).json({ error: 'Failed to start Apify run' });
-
-    return res.status(200).json({
-      status: 'started',
-      runId: newRunId,
-      restaurant: {
-        name: place.name,
-        address: place.formatted_address,
-        rating: place.rating,
-        totalReviews: place.user_ratings_total,
-        placeId: placeId,
-      },
+    const apifyData = await apifyRes.json();
+    return res.status(200).json({ 
+      status: 'started', 
+      runId: apifyData.data?.id,
+      restaurant: { name: details.result?.name, placeId }
     });
 
   } catch (err) {
-    console.error('Handler Error:', err);
     return res.status(500).json({ error: err.message });
   }
 };

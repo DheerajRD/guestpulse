@@ -56,25 +56,52 @@ const InfoCard = ({icon, label, value, sub, color}) => (
   </div>
 );
 
-export default function App() {
-  const [url,        setUrl]        = useState("");
-  const [restaurant, setRestaurant] = useState(null);
-  const [analysis,   setAnalysis]   = useState(null);
-  const [stage,      setStage]      = useState("idle");
-  const [progress,   setProgress]   = useState(0);
-  const [progMsg,    setProgMsg]    = useState("");
-  const [error,      setError]      = useState("");
-  const [activeTab,  setActiveTab]  = useState("owner");
-  const [toast,      setToast]      = useState(null);
-  const [runData,    setRunData]    = useState(null);
+const ReviewCard = ({review, platformColor, platformLabel}) => (
+  <Card style={{padding:14}}>
+    <div style={{display:"flex", justifyContent:"space-between", gap:10, marginBottom:8, alignItems:"center"}}>
+      <div>
+        <div style={{fontSize:13, fontWeight:700, color:C.white}}>{review.author || "Anonymous"}</div>
+        <div style={{fontSize:11, color:C.muted}}>{review.time || "Unknown date"}</div>
+      </div>
+      <div style={{textAlign:"right"}}>
+        <div style={{fontSize:12, fontWeight:700, color:platformColor}}>{platformLabel}</div>
+        <div style={{fontSize:12, color:C.white}}>⭐ {review.rating || 0}</div>
+      </div>
+    </div>
+    <p style={{fontSize:13, color:C.muted, lineHeight:1.6, margin:0}}>{review.text}</p>
+  </Card>
+);
 
-  const showToast = (msg, color=C.green) => { setToast({msg,color}); setTimeout(()=>setToast(null),3000); };
+export default function App() {
+  const [url, setUrl] = useState("");
+  const [restaurant, setRestaurant] = useState(null);
+  const [analysis, setAnalysis] = useState(null);
+  const [rawReviews, setRawReviews] = useState([]);
+  const [sourceCounts, setSourceCounts] = useState({ google: 0, yelp: 0, tripadvisor: 0 });
+  const [stage, setStage] = useState("idle");
+  const [progress, setProgress] = useState(0);
+  const [progMsg, setProgMsg] = useState("");
+  const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState("owner");
+  const [toast, setToast] = useState(null);
+  const [runData, setRunData] = useState(null);
+
+  const showToast = (msg, color=C.green) => {
+    setToast({msg,color});
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const analyse = async () => {
-    if (!url.trim()) { setError("Please paste a Google Maps URL."); return; }
+    if (!url.trim()) {
+      setError("Please paste a Google Maps URL.");
+      return;
+    }
+
     setError("");
     setRestaurant(null);
     setAnalysis(null);
+    setRawReviews([]);
+    setSourceCounts({ google: 0, yelp: 0, tripadvisor: 0 });
     setRunData(null);
     setStage("fetching");
     setProgress(10);
@@ -85,7 +112,6 @@ export default function App() {
       setProgress(20);
       setProgMsg("Finding restaurant...");
 
-      // Phase 1 — start Apify
       const r1 = await fetch("/api/reviews", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -109,8 +135,8 @@ export default function App() {
       setProgress(30);
       setProgMsg("Apify started — fetching recent reviews...");
 
-      // Phase 2 — poll until done
       let reviews = null;
+      let counts = null;
 
       for (let i = 0; i < 24; i++) {
         await new Promise(r => setTimeout(r, 5000));
@@ -137,19 +163,24 @@ export default function App() {
         }
 
         if (!r2.ok) throw new Error(d2.error || "Failed");
+
         if (d2.status === "done" && d2.reviews && d2.reviews.length > 0) {
           reviews = d2.reviews;
+          counts = d2.sources || { google: 0, yelp: 0, tripadvisor: 0 };
           break;
         }
+
         if (d2.status === "running") continue;
       }
 
       if (!reviews || reviews.length === 0) throw new Error("No reviews found. Try again.");
 
+      setRawReviews(reviews);
+      setSourceCounts(counts || { google: 0, yelp: 0, tripadvisor: 0 });
+
       setProgress(65);
       setProgMsg("Claude AI is analysing " + reviews.length + " reviews...");
 
-      // Phase 3 — analyse
       const r3 = await fetch("/api/analyse", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
@@ -175,7 +206,6 @@ export default function App() {
       setAnalysis(fixed);
       setStage("done");
       showToast("✅ Analysis complete!");
-
     } catch(e) {
       setError(e.message || "Something went wrong.");
       setStage("error");
@@ -187,6 +217,8 @@ export default function App() {
     setUrl("");
     setRestaurant(null);
     setAnalysis(null);
+    setRawReviews([]);
+    setSourceCounts({ google: 0, yelp: 0, tripadvisor: 0 });
     setStage("idle");
     setProgress(0);
     setError("");
@@ -195,6 +227,10 @@ export default function App() {
 
   const hs = analysis?.healthScore || 0;
   const isLoading = stage === "fetching";
+
+  const googleReviews = rawReviews.filter(r => r.source === "google");
+  const yelpReviews = rawReviews.filter(r => r.source === "yelp");
+  const tripReviews = rawReviews.filter(r => r.source === "tripadvisor");
 
   const VERDICT = {
     recommended: { color:C.green,  bg:C.greenDim, border:C.greenBorder, icon:"✅", label:"Recommended" },
@@ -215,7 +251,7 @@ export default function App() {
         .prog{transition:width .5s ease}
         .tbtn{cursor:pointer;border:1px solid rgba(232,234,246,0.07);background:transparent;color:rgba(232,234,246,0.4);border-radius:9px;padding:7px 14px;font-size:12px;font-weight:700;font-family:inherit;transition:all .15s;white-space:nowrap}
         .tbtn.on{background:rgba(0,230,118,0.1);border-color:rgba(0,230,118,0.22);color:#00e676}
-        input:focus{border-color:#2979ff!important;outline:none}
+        input:focus, textarea:focus{border-color:#2979ff!important;outline:none}
       `}</style>
 
       {toast && (
@@ -237,8 +273,7 @@ export default function App() {
         )}
       </nav>
 
-      <div style={{maxWidth:680, margin:"0 auto", padding:"32px 18px 80px"}}>
-
+      <div style={{maxWidth:760, margin:"0 auto", padding:"32px 18px 80px"}}>
         <Card style={{marginBottom:20}}>
           <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:14}}>
             <div style={{width:36, height:36, borderRadius:10, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>💓</div>
@@ -247,6 +282,7 @@ export default function App() {
               <p style={{fontSize:11, color:C.muted, margin:0}}>Paste any Google Maps restaurant link</p>
             </div>
           </div>
+
           <textarea
             value={url}
             onChange={e => setUrl(e.target.value)}
@@ -254,11 +290,13 @@ export default function App() {
             rows={3}
             style={{width:"100%", background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.white, fontSize:13, fontFamily:"inherit", marginBottom:10, resize:"none", lineHeight:1.5}}
           />
+
           {error && <div style={{color:C.red, fontSize:13, marginBottom:10}}>⚠️ {error}</div>}
+
           <button
             onClick={analyse}
             disabled={isLoading}
-            style={{width:"100%", padding:"14px", border:"none", borderRadius:12, background:isLoading?"#1e2535":`linear-gradient(135deg,${C.blue},${C.green})`, color:isLoading?"#555":C.black, fontSize:14, fontWeight:800, cursor:isLoading?"not-allowed":"pointer", fontFamily:"'Syne',sans-serif", transition:"transform .15s"}}>
+            style={{width:"100%", padding:"14px", border:"none", borderRadius:12, background:isLoading?"#1e2535":`linear-gradient(135deg,${C.blue},${C.green})`, color:isLoading?"#555":C.black, fontSize:14, fontWeight:800, cursor:isLoading?"not-allowed":"pointer", fontFamily:"'Syne',sans-serif"}}>
             {isLoading ? "⏳ Analysing... please wait" : "🔍 Analyse Restaurant"}
           </button>
         </Card>
@@ -279,7 +317,6 @@ export default function App() {
 
         {stage === "done" && analysis && restaurant && (
           <div className="fade">
-
             <div style={{display:"flex", alignItems:"center", gap:12, background:C.black3, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:14}}>
               <div style={{width:46, height:46, borderRadius:12, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0}}>🍽️</div>
               <div style={{flex:1}}>
@@ -291,6 +328,24 @@ export default function App() {
                 <div style={{fontSize:9, color:C.muted}}>Health</div>
               </div>
             </div>
+
+            <Card>
+              <Lbl>Review Sources</Lbl>
+              <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
+                <span style={{ padding:"6px 12px", borderRadius:999, background:C.blueDim, border:`1px solid ${C.blueBorder}`, color:C.blue2, fontSize:12, fontWeight:700 }}>
+                  Google: {sourceCounts.google}
+                </span>
+                <span style={{ padding:"6px 12px", borderRadius:999, background:C.greenDim, border:`1px solid ${C.greenBorder}`, color:C.green, fontSize:12, fontWeight:700 }}>
+                  Yelp: {sourceCounts.yelp}
+                </span>
+                <span style={{ padding:"6px 12px", borderRadius:999, background:C.redDim, border:`1px solid ${C.redBorder}`, color:C.red, fontSize:12, fontWeight:700 }}>
+                  TripAdvisor: {sourceCounts.tripadvisor}
+                </span>
+                <span style={{ padding:"6px 12px", borderRadius:999, background:"rgba(232,234,246,0.06)", border:`1px solid ${C.border}`, color:C.white, fontSize:12, fontWeight:700 }}>
+                  Total: {rawReviews.length}
+                </span>
+              </div>
+            </Card>
 
             <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:14}}>
               <div style={{background:C.greenDim, border:`1px solid ${C.greenBorder}`, borderRadius:12, padding:12, textAlign:"center"}}>
@@ -308,7 +363,14 @@ export default function App() {
             </div>
 
             <div style={{display:"flex", gap:6, marginBottom:14, flexWrap:"wrap"}}>
-              {[{k:"owner",l:"🍽️ Owner"},{k:"customer",l:"👥 Customer"},{k:"food",l:"🍔 Food"},{k:"access",l:"♿ Access"},{k:"hygiene",l:"🧹 Hygiene"}].map(t=>(
+              {[
+                {k:"owner",l:"🍽️ Owner"},
+                {k:"customer",l:"👥 Customer"},
+                {k:"food",l:"🍔 Food"},
+                {k:"access",l:"♿ Access"},
+                {k:"hygiene",l:"🧹 Hygiene"},
+                {k:"reviews",l:"📝 Reviews"}
+              ].map(t=>(
                 <button key={t.k} className={`tbtn${activeTab===t.k?" on":""}`} onClick={()=>setActiveTab(t.k)}>{t.l}</button>
               ))}
             </div>
@@ -323,16 +385,29 @@ export default function App() {
                     <p style={{fontSize:13, color:C.muted, margin:0}}>{analysis.forOwner?.urgentAction}</p>
                   </div>
                 </Card>
+
+                <Card>
+                  <Lbl>Platform Breakdown</Lbl>
+                  <p style={{fontSize:13, color:C.muted, lineHeight:1.7}}>
+                    This analysis is based on <span style={{color:C.white, fontWeight:700}}>{rawReviews.length}</span> reviews:
+                    {" "}Google <span style={{color:C.blue2, fontWeight:700}}>{sourceCounts.google}</span>,
+                    {" "}Yelp <span style={{color:C.green, fontWeight:700}}>{sourceCounts.yelp}</span>,
+                    {" "}TripAdvisor <span style={{color:C.red, fontWeight:700}}>{sourceCounts.tripadvisor}</span>.
+                  </p>
+                </Card>
+
                 <Lbl>Top Complaints</Lbl>
                 <Card>
                   {(analysis.topComplaints||[]).map((c,i)=><Bar key={i} label={c.issue} count={c.count} total={analysis.totalAnalysed} color={c.severity==="high"?C.red:c.severity==="medium"?C.blue2:C.muted}/>)}
                   {analysis.topComplaints?.length===0&&<p style={{fontSize:13,color:C.green}}>No major complaints ✅</p>}
                 </Card>
+
                 <Lbl>Top Praises</Lbl>
                 <Card>
                   {(analysis.topPraises||[]).map((p,i)=><Bar key={i} label={p.aspect} count={p.count} total={analysis.totalAnalysed} color={C.green}/>)}
                   {analysis.topPraises?.length===0&&<p style={{fontSize:13,color:C.muted}}>None detected</p>}
                 </Card>
+
                 <Lbl>How to Improve</Lbl>
                 {(analysis.forOwner?.improvements||[]).map((imp,i)=><ImpRow key={i} n={i+1} text={imp}/>)}
               </div>
@@ -347,12 +422,20 @@ export default function App() {
                     <div style={{fontSize:12, color:C.muted, lineHeight:1.6}}>{analysis.forCustomer?.conclusion}</div>
                   </div>
                 </div>
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
+
+                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14}}>
                   <InfoCard icon="🍽️" label="Must Try" value={analysis.forCustomer?.mustTry} color={C.green}/>
                   <InfoCard icon="🚫" label="Avoid" value={analysis.forCustomer?.avoid} color={C.red}/>
                   <InfoCard icon="🕐" label="Best Time" value={analysis.bestTimeToVisit} color={C.blue2}/>
                   <InfoCard icon="💰" label="Avg for 2" value={analysis.priceRange?.avgMealForTwo||"—"} sub={analysis.priceRange?.valueLabel} color={C.green}/>
                 </div>
+
+                <Card>
+                  <Lbl>Backed by Real Reviews</Lbl>
+                  <p style={{fontSize:13, color:C.muted, lineHeight:1.7}}>
+                    Verdict based on {rawReviews.length} recent reviews across Google, Yelp, and TripAdvisor.
+                  </p>
+                </Card>
               </div>
             )}
 
@@ -363,11 +446,13 @@ export default function App() {
                   {(analysis.bestDishes||[]).map((d,i)=><span key={i} style={{background:C.greenDim, border:`1px solid ${C.greenBorder}`, color:C.green, fontSize:12, fontWeight:700, padding:"5px 14px", borderRadius:100}}>{"🥇🥈🥉"[i]||"✅"} {d}</span>)}
                   {analysis.bestDishes?.length===0&&<p style={{fontSize:13,color:C.muted}}>Not mentioned</p>}
                 </div>
+
                 <Lbl>Dishes to Avoid</Lbl>
                 <div style={{display:"flex", flexWrap:"wrap", gap:8, marginBottom:14}}>
                   {(analysis.dishesToAvoid||[]).map((d,i)=><span key={i} style={{background:C.redDim, border:`1px solid ${C.redBorder}`, color:C.red, fontSize:12, fontWeight:700, padding:"5px 14px", borderRadius:100}}>❌ {d}</span>)}
                   {analysis.dishesToAvoid?.length===0&&<p style={{fontSize:13,color:C.green}}>No dishes flagged ✅</p>}
                 </div>
+
                 <Lbl>Price Guide</Lbl>
                 <Card>
                   <div style={{display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${C.border}`}}>
@@ -410,6 +495,7 @@ export default function App() {
                     <div style={{height:"100%", borderRadius:100, width:`${(analysis.hygiene?.score||0)*10}%`, background:`linear-gradient(90deg,${C.blue},${C.green})`, transition:"width 1s ease"}}/>
                   </div>
                 </Card>
+
                 <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12}}>
                   {[{l:"Kitchen",v:analysis.hygiene?.kitchen},{l:"Tables",v:analysis.hygiene?.tables},{l:"Restrooms",v:analysis.hygiene?.restrooms},{l:"Staff",v:analysis.hygiene?.staff}].map((h,i)=>{
                     const g=["Clean","Professional","Excellent","Good"].includes(h.v);
@@ -422,6 +508,7 @@ export default function App() {
                     );
                   })}
                 </div>
+
                 {analysis.hygiene?.ownerAlert&&(
                   <Card style={{background:C.redDim, border:`1px solid ${C.redBorder}`}}>
                     <p style={{fontSize:10, fontWeight:700, color:C.red, textTransform:"uppercase", marginBottom:6}}>Owner Alert</p>
@@ -431,12 +518,48 @@ export default function App() {
               </div>
             )}
 
+            {activeTab==="reviews"&&(
+              <div className="fade">
+                <Card>
+                  <Lbl>Platform Counts</Lbl>
+                  <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
+                    <span style={{background:C.blueDim,border:`1px solid ${C.blueBorder}`,color:C.blue2,fontSize:12,fontWeight:700,padding:"6px 12px",borderRadius:100}}>
+                      Google {googleReviews.length}
+                    </span>
+                    <span style={{background:C.greenDim,border:`1px solid ${C.greenBorder}`,color:C.green,fontSize:12,fontWeight:700,padding:"6px 12px",borderRadius:100}}>
+                      Yelp {yelpReviews.length}
+                    </span>
+                    <span style={{background:C.redDim,border:`1px solid ${C.redBorder}`,color:C.red,fontSize:12,fontWeight:700,padding:"6px 12px",borderRadius:100}}>
+                      TripAdvisor {tripReviews.length}
+                    </span>
+                  </div>
+                </Card>
+
+                <Lbl>Google Reviews</Lbl>
+                {googleReviews.length === 0 && <Card><p style={{fontSize:13,color:C.muted}}>No Google reviews returned.</p></Card>}
+                {googleReviews.slice(0, 6).map((r, i) => (
+                  <ReviewCard key={`g-${i}`} review={r} platformColor={C.blue2} platformLabel="Google" />
+                ))}
+
+                <Lbl>Yelp Reviews</Lbl>
+                {yelpReviews.length === 0 && <Card><p style={{fontSize:13,color:C.muted}}>No Yelp reviews returned.</p></Card>}
+                {yelpReviews.slice(0, 6).map((r, i) => (
+                  <ReviewCard key={`y-${i}`} review={r} platformColor={C.green} platformLabel="Yelp" />
+                ))}
+
+                <Lbl>TripAdvisor Reviews</Lbl>
+                {tripReviews.length === 0 && <Card><p style={{fontSize:13,color:C.muted}}>No TripAdvisor reviews returned.</p></Card>}
+                {tripReviews.slice(0, 6).map((r, i) => (
+                  <ReviewCard key={`t-${i}`} review={r} platformColor={C.red} platformLabel="TripAdvisor" />
+                ))}
+              </div>
+            )}
+
             <button onClick={reset} style={{width:"100%", marginTop:10, padding:"12px", border:`1px solid ${C.border}`, background:C.black3, color:C.muted, borderRadius:12, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit"}}>
               🔄 Analyse Another Restaurant
             </button>
           </div>
         )}
-
       </div>
     </div>
   );

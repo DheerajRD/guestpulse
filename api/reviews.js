@@ -15,12 +15,23 @@ module.exports = async function handler(req, res) {
   if (!APIFY_API_TOKEN) return res.status(500).json({ error: 'APIFY_API_TOKEN not configured' });
 
   try {
+    // --------------------------------------------------
+    // HELPER: fetch reviews from dataset
+    // --------------------------------------------------
     const fetchReviews = async (datasetId, source) => {
       const itemsRes = await fetch(
         'https://api.apify.com/v2/datasets/' + datasetId + '/items?token=' + APIFY_API_TOKEN + '&limit=200'
       );
       const items = await itemsRes.json();
       const reviews = [];
+
+      // STEP 3: dataset count log
+      console.log(source, 'dataset items count:', Array.isArray(items) ? items.length : 0);
+
+      // STEP 4: sample item log
+      if (Array.isArray(items) && items.length > 0) {
+        console.log(source, 'sample item:', JSON.stringify(items[0]).slice(0, 700));
+      }
 
       for (const item of items) {
         const arr = item.reviews || [];
@@ -51,6 +62,9 @@ module.exports = async function handler(req, res) {
       return reviews;
     };
 
+    // --------------------------------------------------
+    // HELPER: check single run status
+    // --------------------------------------------------
     const checkRun = async (id, source) => {
       if (!id) return { status: 'done', reviews: [] };
 
@@ -72,6 +86,9 @@ module.exports = async function handler(req, res) {
       return { status: 'running', reviews: [] };
     };
 
+    // --------------------------------------------------
+    // CHECK: poll all runs
+    // --------------------------------------------------
     if (action === 'check') {
       const [gResult, yResult, tResult] = await Promise.all([
         checkRun(runId, 'google'),
@@ -110,19 +127,25 @@ module.exports = async function handler(req, res) {
       });
     }
 
+    // --------------------------------------------------
+    // FIND PLACE ID (full 5-method logic)
+    // --------------------------------------------------
     let placeId = directId || null;
 
     if (!placeId && placeUrl) {
+      // Method 0: direct place_id
       const directMatch = placeUrl.match(/place_id:([a-zA-Z0-9_-]+)/);
       if (directMatch) {
         placeId = directMatch[1];
         console.log('Method 0 (direct place_id):', placeId);
       }
 
+      // Common coords from @lat,lng
       const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
       const lat = coordMatch ? coordMatch[1] : null;
       const lng = coordMatch ? coordMatch[2] : null;
 
+      // Method 1: ChIJ in URL
       if (!placeId) {
         const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
         if (chMatch) {
@@ -131,6 +154,7 @@ module.exports = async function handler(req, res) {
         }
       }
 
+      // Method 2: text search by name with location bias
       if (!placeId) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
         if (nameMatch) {
@@ -157,6 +181,7 @@ module.exports = async function handler(req, res) {
         }
       }
 
+      // Method 3: nearby search with !3d !4d coords
       if (!placeId) {
         const latMatch = placeUrl.match(/!3d(-?\d+\.\d+)/);
         const lngMatch = placeUrl.match(/!4d(-?\d+\.\d+)/);
@@ -185,6 +210,7 @@ module.exports = async function handler(req, res) {
         }
       }
 
+      // Method 4: nearby search with @ coords
       if (!placeId && lat && lng) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
 
@@ -211,6 +237,7 @@ module.exports = async function handler(req, res) {
         }
       }
 
+      // Method 5: text search with strong location bias
       if (!placeId && lat && lng) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
 
@@ -242,6 +269,9 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Could not find restaurant.' });
     }
 
+    // --------------------------------------------------
+    // GET DETAILS
+    // --------------------------------------------------
     const detRes = await fetch(
       'https://maps.googleapis.com/maps/api/place/details/json?place_id=' +
         placeId +
@@ -259,8 +289,19 @@ module.exports = async function handler(req, res) {
     const addressParts = (place.formatted_address || '').split(',');
     const city = addressParts.length > 1 ? addressParts[1].trim() : '';
     const cleanUrl = 'https://www.google.com/maps/place/?q=place_id:' + placeId;
-    const searchQuery = (place.name || '') + ' ' + city;
 
+    // STEP 2: stronger search query
+    const searchQuery = [
+      place.name || '',
+      city || '',
+      place.formatted_address || ''
+    ].join(' ').trim();
+
+    console.log('Search query for Yelp/TripAdvisor:', searchQuery);
+
+    // --------------------------------------------------
+    // START GOOGLE
+    // --------------------------------------------------
     const gRes = await fetch(
       'https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN,
       {
@@ -277,7 +318,11 @@ module.exports = async function handler(req, res) {
 
     const gData = await gRes.json();
 
+    // --------------------------------------------------
+    // START YELP (safe)
+    // --------------------------------------------------
     let safeYelpRunId = null;
+
     try {
       const yRes = await fetch(
         'https://api.apify.com/v2/acts/compass~yelp-reviews-scraper/runs?token=' + APIFY_API_TOKEN,
@@ -302,7 +347,14 @@ module.exports = async function handler(req, res) {
       console.log('Yelp failed:', err.message);
     }
 
+    // STEP 1: Yelp runId log
+    console.log('Yelp runId:', safeYelpRunId);
+
+    // --------------------------------------------------
+    // START TRIPADVISOR (safe)
+    // --------------------------------------------------
     let safeTripRunId = null;
+
     try {
       const tRes = await fetch(
         'https://api.apify.com/v2/acts/maxcopell~tripadvisor-reviews/runs?token=' + APIFY_API_TOKEN,
@@ -326,6 +378,9 @@ module.exports = async function handler(req, res) {
     } catch (err) {
       console.log('TripAdvisor failed:', err.message);
     }
+
+    // STEP 1: TripAdvisor runId log
+    console.log('TripAdvisor runId:', safeTripRunId);
 
     return res.status(200).json({
       status: 'started',

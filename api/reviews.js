@@ -48,7 +48,7 @@ module.exports = async function handler(req, res) {
           }
 
           // ALSO handle flat format
-          if (item.text && item.text.trim().length > 10) {
+          if (arr.length === 0 && item.text && item.text.trim().length > 10) {
             reviews.push({
               id: reviews.length + 1,
               author: item.name || item.reviewerName || 'Anonymous',

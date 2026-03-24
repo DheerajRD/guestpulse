@@ -102,7 +102,7 @@ export default function App() {
 
         const r2 = await fetch("/api/reviews", {
           method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ action: "check", runId: apifyRunId })
+          body: JSON.stringify({ action:"check", runId:d1.runId, yelpRunId:d1.yelpRunId, tripRunId:d1.tripRunId })
         });
         const t2 = await r2.text();
         let d2; try { d2 = JSON.parse(t2); } catch(e) { continue; }

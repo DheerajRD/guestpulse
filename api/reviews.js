@@ -15,9 +15,6 @@ module.exports = async function handler(req, res) {
   if (!APIFY_API_TOKEN) return res.status(500).json({ error: 'APIFY_API_TOKEN not configured' });
 
   try {
-    // --------------------------------------------------
-    // HELPER: fetch reviews from dataset
-    // --------------------------------------------------
     const fetchReviews = async (datasetId, source) => {
       const itemsRes = await fetch(
         'https://api.apify.com/v2/datasets/' + datasetId + '/items?token=' + APIFY_API_TOKEN + '&limit=200'
@@ -40,7 +37,6 @@ module.exports = async function handler(req, res) {
           }
         }
 
-        // Always check flat format too
         if (item.text && item.text.trim().length > 10) {
           reviews.push({
             source,
@@ -55,9 +51,6 @@ module.exports = async function handler(req, res) {
       return reviews;
     };
 
-    // --------------------------------------------------
-    // HELPER: check single run status
-    // --------------------------------------------------
     const checkRun = async (id, source) => {
       if (!id) return { status: 'done', reviews: [] };
 
@@ -79,9 +72,6 @@ module.exports = async function handler(req, res) {
       return { status: 'running', reviews: [] };
     };
 
-    // --------------------------------------------------
-    // CHECK: poll all runs
-    // --------------------------------------------------
     if (action === 'check') {
       const [gResult, yResult, tResult] = await Promise.all([
         checkRun(runId, 'google'),
@@ -108,15 +98,6 @@ module.exports = async function handler(req, res) {
         return res.status(404).json({ error: 'No reviews found from any source.' });
       }
 
-      console.log(
-        'Reviews fetched — Google:',
-        gResult.reviews.length,
-        'Yelp:',
-        yResult.reviews.length,
-        'TripAdvisor:',
-        tResult.reviews.length
-      );
-
       return res.status(200).json({
         status: 'done',
         reviews: allReviews,
@@ -129,25 +110,19 @@ module.exports = async function handler(req, res) {
       });
     }
 
-    // --------------------------------------------------
-    // FIND PLACE ID (restored full 5-method logic + direct place_id)
-    // --------------------------------------------------
     let placeId = directId || null;
 
     if (!placeId && placeUrl) {
-      // Method 0: direct place_id
       const directMatch = placeUrl.match(/place_id:([a-zA-Z0-9_-]+)/);
       if (directMatch) {
         placeId = directMatch[1];
         console.log('Method 0 (direct place_id):', placeId);
       }
 
-      // Common coords from @lat,lng
       const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
       const lat = coordMatch ? coordMatch[1] : null;
       const lng = coordMatch ? coordMatch[2] : null;
 
-      // Method 1: ChIJ in URL
       if (!placeId) {
         const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
         if (chMatch) {
@@ -156,7 +131,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 2: text search by name with location bias
       if (!placeId) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
         if (nameMatch) {
@@ -183,7 +157,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 3: nearby search with !3d !4d coords
       if (!placeId) {
         const latMatch = placeUrl.match(/!3d(-?\d+\.\d+)/);
         const lngMatch = placeUrl.match(/!4d(-?\d+\.\d+)/);
@@ -212,7 +185,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 4: nearby search with @ coords
       if (!placeId && lat && lng) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
 
@@ -239,7 +211,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 5: text search with strong location bias
       if (!placeId && lat && lng) {
         const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
 
@@ -271,9 +242,6 @@ module.exports = async function handler(req, res) {
       return res.status(400).json({ error: 'Could not find restaurant.' });
     }
 
-    // --------------------------------------------------
-    // GET DETAILS
-    // --------------------------------------------------
     const detRes = await fetch(
       'https://maps.googleapis.com/maps/api/place/details/json?place_id=' +
         placeId +
@@ -293,9 +261,6 @@ module.exports = async function handler(req, res) {
     const cleanUrl = 'https://www.google.com/maps/place/?q=place_id:' + placeId;
     const searchQuery = (place.name || '') + ' ' + city;
 
-    // --------------------------------------------------
-    // START GOOGLE
-    // --------------------------------------------------
     const gRes = await fetch(
       'https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN,
       {
@@ -312,11 +277,7 @@ module.exports = async function handler(req, res) {
 
     const gData = await gRes.json();
 
-    // --------------------------------------------------
-    // START YELP (safe)
-    // --------------------------------------------------
     let safeYelpRunId = null;
-
     try {
       const yRes = await fetch(
         'https://api.apify.com/v2/acts/compass~yelp-reviews-scraper/runs?token=' + APIFY_API_TOKEN,
@@ -341,11 +302,7 @@ module.exports = async function handler(req, res) {
       console.log('Yelp failed:', err.message);
     }
 
-    // --------------------------------------------------
-    // START TRIPADVISOR (safe)
-    // --------------------------------------------------
     let safeTripRunId = null;
-
     try {
       const tRes = await fetch(
         'https://api.apify.com/v2/acts/maxcopell~tripadvisor-reviews/runs?token=' + APIFY_API_TOKEN,
@@ -369,15 +326,6 @@ module.exports = async function handler(req, res) {
     } catch (err) {
       console.log('TripAdvisor failed:', err.message);
     }
-
-    console.log(
-      'Started — Google:',
-      gData?.data?.id,
-      'Yelp:',
-      safeYelpRunId,
-      'TripAdvisor:',
-      safeTripRunId
-    );
 
     return res.status(200).json({
       status: 'started',

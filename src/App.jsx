@@ -89,7 +89,9 @@ export default function App() {
       if (!d1.restaurant) throw new Error("Could not find restaurant.");
 
       setRestaurant(d1.restaurant);
-      const apifyRunId = d1.runId;
+      const apifyRunId  = d1.runId     || null;
+      const apifyYelpId = d1.yelpRunId || null;
+      const apifyTripId = d1.tripRunId || null;
       setRunId(apifyRunId);
       setProgress(30); setProgMsg("Apify started — fetching recent reviews...");
 
@@ -102,7 +104,7 @@ export default function App() {
 
         const r2 = await fetch("/api/reviews", {
           method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ action:"check", runId:d1.runId, yelpRunId:d1.yelpRunId, tripRunId:d1.tripRunId })
+          body: JSON.stringify({ action:"check", runId:apifyRunId, yelpRunId:apifyYelpId, tripRunId:apifyTripId })
         });
         const t2 = await r2.text();
         let d2; try { d2 = JSON.parse(t2); } catch(e) { continue; }

@@ -66,48 +66,76 @@ export default function App() {
   const [error,      setError]      = useState("");
   const [activeTab,  setActiveTab]  = useState("owner");
   const [toast,      setToast]      = useState(null);
-  const [runId,      setRunId]      = useState(null);
+  const [runData,    setRunData]    = useState(null);
 
   const showToast = (msg, color=C.green) => { setToast({msg,color}); setTimeout(()=>setToast(null),3000); };
 
   const analyse = async () => {
     if (!url.trim()) { setError("Please paste a Google Maps URL."); return; }
-    setError(""); setRestaurant(null); setAnalysis(null); setRunId(null);
-    setStage("fetching"); setProgress(10); setProgMsg("Connecting to Google Maps...");
+    setError("");
+    setRestaurant(null);
+    setAnalysis(null);
+    setRunData(null);
+    setStage("fetching");
+    setProgress(10);
+    setProgMsg("Connecting to Google Maps...");
+
     try {
       await new Promise(r => setTimeout(r, 300));
-      setProgress(20); setProgMsg("Finding restaurant...");
+      setProgress(20);
+      setProgMsg("Finding restaurant...");
 
       // Phase 1 — start Apify
-      const r1   = await fetch("/api/reviews", {
-        method:"POST", headers:{"Content-Type":"application/json"},
+      const r1 = await fetch("/api/reviews", {
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ placeUrl: url.trim() })
       });
-      const t1   = await r1.text();
-      let d1; try { d1 = JSON.parse(t1); } catch(e) { throw new Error("Server error: " + t1.substring(0,120)); }
+
+      const t1 = await r1.text();
+      let d1;
+      try {
+        d1 = JSON.parse(t1);
+      } catch(e) {
+        throw new Error("Server error: " + t1.substring(0,120));
+      }
+
       if (!r1.ok) throw new Error(d1.error || "Failed to start review fetch");
       if (!d1.restaurant) throw new Error("Could not find restaurant.");
 
       setRestaurant(d1.restaurant);
-      const apifyRunId  = d1.runId     || null;
-      const apifyYelpId = d1.yelpRunId || null;
-      const apifyTripId = d1.tripRunId || null;
-      setRunId(apifyRunId);
-      setProgress(30); setProgMsg("Apify started — fetching recent reviews...");
+      setRunData(d1);
+
+      setProgress(30);
+      setProgMsg("Apify started — fetching recent reviews...");
 
       // Phase 2 — poll until done
       let reviews = null;
+
       for (let i = 0; i < 24; i++) {
         await new Promise(r => setTimeout(r, 5000));
         setProgress(30 + Math.min(i * 2, 28));
-        setProgMsg("Reading reviews... (" + ((i+1)*5) + "s)");
+        setProgMsg("Reading reviews... (" + ((i + 1) * 5) + "s)");
 
         const r2 = await fetch("/api/reviews", {
-          method:"POST", headers:{"Content-Type":"application/json"},
-          body: JSON.stringify({ action:"check", runId:apifyRunId, yelpRunId:apifyYelpId, tripRunId:apifyTripId })
+          method:"POST",
+          headers:{"Content-Type":"application/json"},
+          body: JSON.stringify({
+            action: "check",
+            runId: d1.runId,
+            yelpRunId: d1.yelpRunId,
+            tripRunId: d1.tripRunId
+          })
         });
+
         const t2 = await r2.text();
-        let d2; try { d2 = JSON.parse(t2); } catch(e) { continue; }
+        let d2;
+        try {
+          d2 = JSON.parse(t2);
+        } catch(e) {
+          continue;
+        }
+
         if (!r2.ok) throw new Error(d2.error || "Failed");
         if (d2.status === "done" && d2.reviews && d2.reviews.length > 0) {
           reviews = d2.reviews;
@@ -118,21 +146,31 @@ export default function App() {
 
       if (!reviews || reviews.length === 0) throw new Error("No reviews found. Try again.");
 
-      setProgress(65); setProgMsg("Claude AI is analysing " + reviews.length + " reviews...");
+      setProgress(65);
+      setProgMsg("Claude AI is analysing " + reviews.length + " reviews...");
 
       // Phase 3 — analyse
       const r3 = await fetch("/api/analyse", {
-        method:"POST", headers:{"Content-Type":"application/json"},
+        method:"POST",
+        headers:{"Content-Type":"application/json"},
         body: JSON.stringify({ reviews, restaurantName: d1.restaurant.name })
       });
+
       const t3 = await r3.text();
-      let d3; try { d3 = JSON.parse(t3); } catch(e) { throw new Error("Analysis error: " + t3.substring(0,120)); }
+      let d3;
+      try {
+        d3 = JSON.parse(t3);
+      } catch(e) {
+        throw new Error("Analysis error: " + t3.substring(0,120));
+      }
+
       if (!r3.ok) throw new Error(d3.error || "Analysis failed");
 
       const fixed = fixAnalysis(d3, reviews.length);
       if (!fixed) throw new Error("Empty analysis data. Please try again.");
 
-      setProgress(100); setProgMsg("Done! " + reviews.length + " reviews analysed.");
+      setProgress(100);
+      setProgMsg("Done! " + reviews.length + " reviews analysed.");
       await new Promise(r => setTimeout(r, 500));
       setAnalysis(fixed);
       setStage("done");
@@ -140,13 +178,19 @@ export default function App() {
 
     } catch(e) {
       setError(e.message || "Something went wrong.");
-      setStage("error"); setProgress(0);
+      setStage("error");
+      setProgress(0);
     }
   };
 
   const reset = () => {
-    setUrl(""); setRestaurant(null); setAnalysis(null);
-    setStage("idle"); setProgress(0); setError(""); setRunId(null);
+    setUrl("");
+    setRestaurant(null);
+    setAnalysis(null);
+    setStage("idle");
+    setProgress(0);
+    setError("");
+    setRunData(null);
   };
 
   const hs = analysis?.healthScore || 0;
@@ -180,7 +224,6 @@ export default function App() {
         </div>
       )}
 
-      {/* NAV */}
       <nav style={{background:C.black2, borderBottom:`1px solid ${C.border}`, padding:"13px 22px", display:"flex", alignItems:"center", justifyContent:"space-between"}}>
         <div style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}} onClick={reset}>
           <div style={{width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16}}>💓</div>
@@ -196,7 +239,6 @@ export default function App() {
 
       <div style={{maxWidth:680, margin:"0 auto", padding:"32px 18px 80px"}}>
 
-        {/* URL INPUT — always visible at top */}
         <Card style={{marginBottom:20}}>
           <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:14}}>
             <div style={{width:36, height:36, borderRadius:10, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>💓</div>
@@ -206,12 +248,12 @@ export default function App() {
             </div>
           </div>
           <textarea
-  value={url}
-  onChange={e => setUrl(e.target.value)}
-  placeholder="https://maps.google.com/maps/place/your-restaurant..."
-  rows={3}
-  style={{width:"100%", background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.white, fontSize:13, fontFamily:"inherit", marginBottom:10, resize:"none", lineHeight:1.5}}
-/>
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            placeholder="https://maps.google.com/maps/place/your-restaurant..."
+            rows={3}
+            style={{width:"100%", background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.white, fontSize:13, fontFamily:"inherit", marginBottom:10, resize:"none", lineHeight:1.5}}
+          />
           {error && <div style={{color:C.red, fontSize:13, marginBottom:10}}>⚠️ {error}</div>}
           <button
             onClick={analyse}
@@ -221,7 +263,6 @@ export default function App() {
           </button>
         </Card>
 
-        {/* LOADING */}
         {isLoading && (
           <Card className="fade" style={{textAlign:"center", padding:28}}>
             <div className="pulse" style={{fontSize:52, marginBottom:14}}>{progress < 55 ? "📡" : "🤖"}</div>
@@ -236,11 +277,9 @@ export default function App() {
           </Card>
         )}
 
-        {/* RESULTS */}
         {stage === "done" && analysis && restaurant && (
           <div className="fade">
 
-            {/* Restaurant header */}
             <div style={{display:"flex", alignItems:"center", gap:12, background:C.black3, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:14}}>
               <div style={{width:46, height:46, borderRadius:12, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0}}>🍽️</div>
               <div style={{flex:1}}>
@@ -253,7 +292,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Sentiment row */}
             <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:14}}>
               <div style={{background:C.greenDim, border:`1px solid ${C.greenBorder}`, borderRadius:12, padding:12, textAlign:"center"}}>
                 <div className="syne" style={{fontSize:22, fontWeight:800, color:C.green}}>{analysis.sentiment?.positive||0}</div>
@@ -269,14 +307,12 @@ export default function App() {
               </div>
             </div>
 
-            {/* Tabs */}
             <div style={{display:"flex", gap:6, marginBottom:14, flexWrap:"wrap"}}>
               {[{k:"owner",l:"🍽️ Owner"},{k:"customer",l:"👥 Customer"},{k:"food",l:"🍔 Food"},{k:"access",l:"♿ Access"},{k:"hygiene",l:"🧹 Hygiene"}].map(t=>(
                 <button key={t.k} className={`tbtn${activeTab===t.k?" on":""}`} onClick={()=>setActiveTab(t.k)}>{t.l}</button>
               ))}
             </div>
 
-            {/* OWNER TAB */}
             {activeTab==="owner"&&(
               <div className="fade">
                 <Card style={{borderLeft:`3px solid ${C.blue}`, borderRadius:"0 14px 14px 0"}}>
@@ -302,7 +338,6 @@ export default function App() {
               </div>
             )}
 
-            {/* CUSTOMER TAB */}
             {activeTab==="customer"&&(
               <div className="fade">
                 <div style={{display:"flex", alignItems:"center", gap:14, background:v.bg, border:`1px solid ${v.border}`, borderRadius:16, padding:16, marginBottom:14}}>
@@ -321,7 +356,6 @@ export default function App() {
               </div>
             )}
 
-            {/* FOOD TAB */}
             {activeTab==="food"&&(
               <div className="fade">
                 <Lbl>Best Dishes</Lbl>
@@ -352,7 +386,6 @@ export default function App() {
               </div>
             )}
 
-            {/* ACCESSIBILITY TAB */}
             {activeTab==="access"&&(
               <div className="fade">
                 <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
@@ -366,7 +399,6 @@ export default function App() {
               </div>
             )}
 
-            {/* HYGIENE TAB */}
             {activeTab==="hygiene"&&(
               <div className="fade">
                 <Card style={{textAlign:"center", marginBottom:14}}>
@@ -404,8 +436,8 @@ export default function App() {
             </button>
           </div>
         )}
+
       </div>
     </div>
   );
 }
-

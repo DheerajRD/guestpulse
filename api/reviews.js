@@ -25,10 +25,8 @@ module.exports = async function handler(req, res) {
       const items = await itemsRes.json();
       const reviews = [];
 
-      // STEP 3: dataset count log
       console.log(source, 'dataset items count:', Array.isArray(items) ? items.length : 0);
 
-      // STEP 4: sample item log
       if (Array.isArray(items) && items.length > 0) {
         console.log(source, 'sample item:', JSON.stringify(items[0]).slice(0, 700));
       }
@@ -128,22 +126,34 @@ module.exports = async function handler(req, res) {
     }
 
     // --------------------------------------------------
-    // FIND PLACE ID (full 5-method logic)
+    // FIND PLACE ID (stronger exact-match logic)
     // --------------------------------------------------
     let placeId = directId || null;
 
     if (!placeId && placeUrl) {
+      const normalizeName = (s) =>
+        (s || '')
+          .toLowerCase()
+          .replace(/[%]/g, '')
+          .replace(/[^a-z0-9\s&'-]/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+
+      const extractPlaceName = () => {
+        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
+        if (!nameMatch) return '';
+        return decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
+      };
+
+      const requestedName = extractPlaceName();
+      const normalizedRequestedName = normalizeName(requestedName);
+
       // Method 0: direct place_id
       const directMatch = placeUrl.match(/place_id:([a-zA-Z0-9_-]+)/);
       if (directMatch) {
         placeId = directMatch[1];
         console.log('Method 0 (direct place_id):', placeId);
       }
-
-      // Common coords from @lat,lng
-      const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
-      const lat = coordMatch ? coordMatch[1] : null;
-      const lng = coordMatch ? coordMatch[2] : null;
 
       // Method 1: ChIJ in URL
       if (!placeId) {
@@ -154,113 +164,127 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 2: text search by name with location bias
-      if (!placeId) {
-        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
-        if (nameMatch) {
-          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          console.log('Method 2 searching:', name);
+      // Extract coords
+      const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+      const lat = coordMatch ? coordMatch[1] : null;
+      const lng = coordMatch ? coordMatch[2] : null;
 
-          let url =
-            'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' +
-            encodeURIComponent(name) +
+      const latMatch = placeUrl.match(/!3d(-?\d+\.\d+)/);
+      const lngMatch = placeUrl.match(/!4d(-?\d+\.\d+)/);
+      const exactLat = latMatch ? latMatch[1] : lat;
+      const exactLng = lngMatch ? lngMatch[1] : lng;
+
+      const chooseBestCandidate = (results) => {
+        if (!Array.isArray(results) || results.length === 0) return null;
+
+        const requested = normalizedRequestedName;
+
+        const scored = results.map((r) => {
+          const candidateName = normalizeName(r.name || '');
+          let score = 0;
+
+          if (candidateName === requested) score += 100;
+          else if (candidateName.includes(requested) || requested.includes(candidateName)) score += 60;
+
+          if ((r.business_status || '') === 'OPERATIONAL') score += 10;
+          if (typeof r.rating === 'number') score += Math.min(r.rating, 5);
+
+          return { ...r, _score: score };
+        });
+
+        scored.sort((a, b) => b._score - a._score);
+        return scored[0];
+      };
+
+      // Method 2: nearby search using exact !3d !4d coords
+      if (!placeId && exactLat && exactLng && requestedName) {
+        console.log('Method 2 nearby exact coords:', exactLat, exactLng, requestedName);
+
+        const r = await fetch(
+          'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' +
+            exactLat +
+            ',' +
+            exactLng +
+            '&rankby=distance&keyword=' +
+            encodeURIComponent(requestedName) +
             '&key=' +
-            GOOGLE_API_KEY;
+            GOOGLE_API_KEY
+        );
 
-          if (lat && lng) {
-            url += '&location=' + lat + ',' + lng + '&radius=500';
-          }
+        const d = await r.json();
+        const best = chooseBestCandidate(d.results);
 
-          const r = await fetch(url);
-          const d = await r.json();
-
-          if (d.results && d.results.length > 0) {
-            placeId = d.results[0].place_id;
-            console.log('Method 2 found:', placeId);
-          }
+        if (best?.place_id) {
+          placeId = best.place_id;
+          console.log('Method 2 found:', placeId, best.name);
         }
       }
 
-      // Method 3: nearby search with !3d !4d coords
-      if (!placeId) {
-        const latMatch = placeUrl.match(/!3d(-?\d+\.\d+)/);
-        const lngMatch = placeUrl.match(/!4d(-?\d+\.\d+)/);
-        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
+      // Method 3: nearby search using @lat,lng coords
+      if (!placeId && lat && lng && requestedName) {
+        console.log('Method 3 nearby @coords:', lat, lng, requestedName);
 
-        if (latMatch && lngMatch && nameMatch) {
-          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          console.log('Method 3 searching near:', latMatch[1], lngMatch[1]);
+        const r = await fetch(
+          'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' +
+            lat +
+            ',' +
+            lng +
+            '&rankby=distance&keyword=' +
+            encodeURIComponent(requestedName) +
+            '&key=' +
+            GOOGLE_API_KEY
+        );
 
-          const r = await fetch(
-            'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' +
-              latMatch[1] +
-              ',' +
-              lngMatch[1] +
-              '&radius=100&keyword=' +
-              encodeURIComponent(name) +
-              '&key=' +
-              GOOGLE_API_KEY
-          );
-          const d = await r.json();
+        const d = await r.json();
+        const best = chooseBestCandidate(d.results);
 
-          if (d.results && d.results.length > 0) {
-            placeId = d.results[0].place_id;
-            console.log('Method 3 found:', placeId);
-          }
+        if (best?.place_id) {
+          placeId = best.place_id;
+          console.log('Method 3 found:', placeId, best.name);
         }
       }
 
-      // Method 4: nearby search with @ coords
-      if (!placeId && lat && lng) {
-        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
+      // Method 4: text search with exact location bias
+      if (!placeId && requestedName && exactLat && exactLng) {
+        console.log('Method 4 text search with exact bias:', requestedName);
 
-        if (nameMatch) {
-          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          console.log('Method 4 searching near:', lat, lng);
+        const r = await fetch(
+          'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' +
+            encodeURIComponent(requestedName) +
+            '&location=' +
+            exactLat +
+            ',' +
+            exactLng +
+            '&radius=100&key=' +
+            GOOGLE_API_KEY
+        );
 
-          const r = await fetch(
-            'https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=' +
-              lat +
-              ',' +
-              lng +
-              '&radius=300&keyword=' +
-              encodeURIComponent(name) +
-              '&key=' +
-              GOOGLE_API_KEY
-          );
-          const d = await r.json();
+        const d = await r.json();
+        const best = chooseBestCandidate(d.results);
 
-          if (d.results && d.results.length > 0) {
-            placeId = d.results[0].place_id;
-            console.log('Method 4 found:', placeId);
-          }
+        if (best?.place_id) {
+          placeId = best.place_id;
+          console.log('Method 4 found:', placeId, best.name);
         }
       }
 
-      // Method 5: text search with strong location bias
-      if (!placeId && lat && lng) {
-        const nameMatch = placeUrl.match(/\/place\/([^/@?#]+)/);
+      // Method 5: plain text fallback only
+      if (!placeId && requestedName) {
+        console.log('Method 5 plain text fallback:', requestedName);
 
-        if (nameMatch) {
-          const name = decodeURIComponent(nameMatch[1].replace(/\+/g, ' ')).trim();
-          console.log('Method 5 searching with bias:', name);
+        const r = await fetch(
+          'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' +
+            encodeURIComponent(requestedName) +
+            '&key=' +
+            GOOGLE_API_KEY
+        );
 
-          const r = await fetch(
-            'https://maps.googleapis.com/maps/api/place/textsearch/json?query=' +
-              encodeURIComponent(name) +
-              '&location=' +
-              lat +
-              ',' +
-              lng +
-              '&radius=1000&key=' +
-              GOOGLE_API_KEY
-          );
-          const d = await r.json();
+        const d = await r.json();
+        const best = chooseBestCandidate(d.results);
 
-          if (d.results && d.results.length > 0) {
-            placeId = d.results[0].place_id;
-            console.log('Method 5 found:', placeId);
-          }
+        if (best?.place_id) {
+          placeId = best.place_id;
+          console.log('Method 5 found:', placeId, best.name);
         }
       }
     }
@@ -275,7 +299,8 @@ module.exports = async function handler(req, res) {
     const detRes = await fetch(
       'https://maps.googleapis.com/maps/api/place/details/json?place_id=' +
         placeId +
-        '&fields=name,rating,user_ratings_total,formatted_address,geometry,address_components&key=' + GOOGLE_API_KEY
+        '&fields=name,rating,user_ratings_total,formatted_address,geometry,address_components&key=' +
+        GOOGLE_API_KEY
     );
 
     const detData = await detRes.json();
@@ -289,7 +314,6 @@ module.exports = async function handler(req, res) {
     const city = addressParts.length > 1 ? addressParts[1].trim() : '';
     const cleanUrl = 'https://www.google.com/maps/place/?q=place_id:' + placeId;
 
-    // STEP 2: stronger search query
     const searchQuery = [
       place.name || '',
       city || '',
@@ -346,7 +370,6 @@ module.exports = async function handler(req, res) {
       console.log('Yelp failed:', err.message);
     }
 
-    // STEP 1: Yelp runId log
     console.log('Yelp runId:', safeYelpRunId);
 
     // --------------------------------------------------
@@ -378,7 +401,6 @@ module.exports = async function handler(req, res) {
       console.log('TripAdvisor failed:', err.message);
     }
 
-    // STEP 1: TripAdvisor runId log
     console.log('TripAdvisor runId:', safeTripRunId);
 
     return res.status(200).json({

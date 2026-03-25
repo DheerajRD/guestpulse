@@ -126,7 +126,7 @@ module.exports = async function handler(req, res) {
     }
 
     // --------------------------------------------------
-    // FIND PLACE ID (stronger exact-match logic)
+    // FIND PLACE ID (improved exact-match logic)
     // --------------------------------------------------
     let placeId = directId || null;
 
@@ -174,11 +174,26 @@ module.exports = async function handler(req, res) {
       const exactLat = latMatch ? latMatch[1] : lat;
       const exactLng = lngMatch ? lngMatch[1] : lng;
 
-      const chooseBestCandidate = (results) => {
+      const chooseBestCandidate = (results, preferClosest = false) => {
         if (!Array.isArray(results) || results.length === 0) return null;
 
         const requested = normalizedRequestedName;
 
+        // For nearby searches using rankby=distance, trust Google's distance order
+        if (preferClosest) {
+          const exact = results.find((r) => normalizeName(r.name || '') === requested);
+          if (exact) return exact;
+
+          const contains = results.find((r) => {
+            const candidateName = normalizeName(r.name || '');
+            return candidateName.includes(requested) || requested.includes(candidateName);
+          });
+          if (contains) return contains;
+
+          return results[0];
+        }
+
+        // For text searches, scoring still helps
         const scored = results.map((r) => {
           const candidateName = normalizeName(r.name || '');
           let score = 0;
@@ -212,7 +227,7 @@ module.exports = async function handler(req, res) {
         );
 
         const d = await r.json();
-        const best = chooseBestCandidate(d.results);
+        const best = chooseBestCandidate(d.results, true);
 
         if (best?.place_id) {
           placeId = best.place_id;
@@ -236,7 +251,7 @@ module.exports = async function handler(req, res) {
         );
 
         const d = await r.json();
-        const best = chooseBestCandidate(d.results);
+        const best = chooseBestCandidate(d.results, true);
 
         if (best?.place_id) {
           placeId = best.place_id;
@@ -260,7 +275,7 @@ module.exports = async function handler(req, res) {
         );
 
         const d = await r.json();
-        const best = chooseBestCandidate(d.results);
+        const best = chooseBestCandidate(d.results, false);
 
         if (best?.place_id) {
           placeId = best.place_id;
@@ -280,7 +295,7 @@ module.exports = async function handler(req, res) {
         );
 
         const d = await r.json();
-        const best = chooseBestCandidate(d.results);
+        const best = chooseBestCandidate(d.results, false);
 
         if (best?.place_id) {
           placeId = best.place_id;

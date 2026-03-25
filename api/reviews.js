@@ -275,8 +275,7 @@ module.exports = async function handler(req, res) {
     const detRes = await fetch(
       'https://maps.googleapis.com/maps/api/place/details/json?place_id=' +
         placeId +
-        '&fields=name,rating,user_ratings_total,formatted_address&key=' +
-        GOOGLE_API_KEY
+        '&fields=name,rating,user_ratings_total,formatted_address,geometry,address_components&key=' + GOOGLE_API_KEY
     );
 
     const detData = await detRes.json();

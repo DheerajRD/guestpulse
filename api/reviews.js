@@ -109,19 +109,8 @@ module.exports = async function handler(req, res) {
         ...tResult.reviews,
       ];
 
-      // ✅ Recommended stability fix only
       if (allReviews.length === 0) {
-        return res.status(200).json({
-          status: 'done',
-          reviews: [],
-          total: 0,
-          sources: {
-            google: gResult.reviews.length,
-            yelp: yResult.reviews.length,
-            tripadvisor: tResult.reviews.length,
-          },
-          warning: 'No reviews were returned this time. Please try again.'
-        });
+        return res.status(404).json({ error: 'No reviews found from any source.' });
       }
 
       return res.status(200).json({
@@ -190,6 +179,7 @@ module.exports = async function handler(req, res) {
 
         const requested = normalizedRequestedName;
 
+        // For nearby searches using rankby=distance, trust Google's distance order
         if (preferClosest) {
           const exact = results.find((r) => normalizeName(r.name || '') === requested);
           if (exact) return exact;
@@ -203,6 +193,7 @@ module.exports = async function handler(req, res) {
           return results[0];
         }
 
+        // For text searches, scoring still helps
         const scored = results.map((r) => {
           const candidateName = normalizeName(r.name || '');
           let score = 0;

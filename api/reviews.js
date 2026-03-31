@@ -6,7 +6,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { placeUrl, placeId: directId, runId, yelpRunId, tripRunId, action } = req.body || {};
+  const { placeUrl, placeId: directId, runId, yelpRunId, tripRunId, action, addressHint } = req.body || {};
 
   const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
   const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
@@ -148,14 +148,12 @@ module.exports = async function handler(req, res) {
       const requestedName = extractPlaceName();
       const normalizedRequestedName = normalizeName(requestedName);
 
-      // Method 0: direct place_id
       const directMatch = placeUrl.match(/place_id:([a-zA-Z0-9_-]+)/);
       if (directMatch) {
         placeId = directMatch[1];
         console.log('Method 0 (direct place_id):', placeId);
       }
 
-      // Method 1: ChIJ in URL
       if (!placeId) {
         const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
         if (chMatch) {
@@ -164,7 +162,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Extract coords
       const coordMatch = placeUrl.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
       const lat = coordMatch ? coordMatch[1] : null;
       const lng = coordMatch ? coordMatch[2] : null;
@@ -179,7 +176,6 @@ module.exports = async function handler(req, res) {
 
         const requested = normalizedRequestedName;
 
-        // For nearby searches using rankby=distance, trust Google's distance order
         if (preferClosest) {
           const exact = results.find((r) => normalizeName(r.name || '') === requested);
           if (exact) return exact;
@@ -193,7 +189,6 @@ module.exports = async function handler(req, res) {
           return results[0];
         }
 
-        // For text searches, scoring still helps
         const scored = results.map((r) => {
           const candidateName = normalizeName(r.name || '');
           let score = 0;
@@ -211,7 +206,6 @@ module.exports = async function handler(req, res) {
         return scored[0];
       };
 
-      // Method 2: nearby search using exact !3d !4d coords
       if (!placeId && exactLat && exactLng && requestedName) {
         console.log('Method 2 nearby exact coords:', exactLat, exactLng, requestedName);
 
@@ -235,7 +229,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 3: nearby search using @lat,lng coords
       if (!placeId && lat && lng && requestedName) {
         console.log('Method 3 nearby @coords:', lat, lng, requestedName);
 
@@ -259,7 +252,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 4: text search with exact location bias
       if (!placeId && requestedName && exactLat && exactLng) {
         console.log('Method 4 text search with exact bias:', requestedName);
 
@@ -283,7 +275,6 @@ module.exports = async function handler(req, res) {
         }
       }
 
-      // Method 5: plain text fallback only
       if (!placeId && requestedName) {
         console.log('Method 5 plain text fallback:', requestedName);
 
@@ -331,8 +322,9 @@ module.exports = async function handler(req, res) {
 
     const searchQuery = [
       place.name || '',
+      place.formatted_address || '',
       city || '',
-      place.formatted_address || ''
+      addressHint || ''
     ].join(' ').trim();
 
     console.log('Search query for Yelp/TripAdvisor:', searchQuery);

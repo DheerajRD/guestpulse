@@ -355,7 +355,7 @@ module.exports = async function handler(req, res) {
 
     try {
       const yRes = await fetch(
-        'https://api.apify.com/v2/acts/compass~yelp-reviews-scraper/runs?token=' + APIFY_API_TOKEN,
+        'https://api.apify.com/v2/acts/delicious_zebu/yelp-reviews-scraper/runs?token=' + APIFY_API_TOKEN,
         {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },

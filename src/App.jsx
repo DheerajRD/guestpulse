@@ -74,6 +74,7 @@ const ReviewCard = ({review, platformColor, platformLabel}) => (
 
 export default function App() {
   const [url, setUrl] = useState("");
+  const [addressHint, setAddressHint] = useState("");
   const [restaurant, setRestaurant] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [rawReviews, setRawReviews] = useState([]);
@@ -115,7 +116,10 @@ export default function App() {
       const r1 = await fetch("/api/reviews", {
         method:"POST",
         headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ placeUrl: url.trim() })
+        body: JSON.stringify({
+          placeUrl: url.trim(),
+          addressHint: addressHint.trim()
+        })
       });
 
       const t1 = await r1.text();
@@ -215,6 +219,7 @@ export default function App() {
 
   const reset = () => {
     setUrl("");
+    setAddressHint("");
     setRestaurant(null);
     setAnalysis(null);
     setRawReviews([]);
@@ -289,6 +294,24 @@ export default function App() {
             placeholder="https://maps.google.com/maps/place/your-restaurant..."
             rows={3}
             style={{width:"100%", background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.white, fontSize:13, fontFamily:"inherit", marginBottom:10, resize:"none", lineHeight:1.5}}
+          />
+
+          <input
+            type="text"
+            value={addressHint}
+            onChange={e => setAddressHint(e.target.value)}
+            placeholder="Optional: address, area, or ZIP to improve Yelp/TripAdvisor matching"
+            style={{
+              width: "100%",
+              background: C.black2,
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 12,
+              padding: "12px 16px",
+              color: C.white,
+              fontSize: 13,
+              fontFamily: "inherit",
+              marginBottom: 10
+            }}
           />
 
           {error && <div style={{color:C.red, fontSize:13, marginBottom:10}}>⚠️ {error}</div>}

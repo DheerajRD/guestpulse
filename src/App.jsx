@@ -170,10 +170,16 @@ export default function App() {
 
         if (!r2.ok) throw new Error(d2.error || "Failed");
 
-        if (d2.status === "done" && d2.reviews && d2.reviews.length > 0) {
-          reviews = d2.reviews;
-          counts = d2.sources || { google: 0, yelp: 0, tripadvisor: 0 };
-          break;
+        if (d2.status === "done") {
+          if (d2.reviews && d2.reviews.length > 0) {
+            reviews = d2.reviews;
+            counts = d2.sources || { google: 0, yelp: 0, tripadvisor: 0 };
+            break;
+          }
+
+          if (d2.warning) {
+            throw new Error(d2.warning);
+          }
         }
 
         if (d2.status === "running") continue;

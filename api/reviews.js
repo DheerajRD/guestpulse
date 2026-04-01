@@ -6,7 +6,7 @@ module.exports = async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const { placeUrl, placeId: directId, runId, yelpRunId, tripRunId, action, addressHint } = req.body || {};
+  const { placeUrl, placeId: directId, runId, yelpRunId, tripRunId, action, addressHint, yelpUrl } = req.body || {};
 
   const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
   const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
@@ -31,28 +31,61 @@ module.exports = async function handler(req, res) {
         console.log(source, 'sample item:', JSON.stringify(items[0]).slice(0, 700));
       }
 
+      const getText = (obj) =>
+        obj?.text ||
+        obj?.reviewText ||
+        obj?.comment ||
+        obj?.content ||
+        obj?.reviewBody ||
+        obj?.review ||
+        '';
+
+      const getAuthor = (obj) =>
+        obj?.name ||
+        obj?.reviewerName ||
+        obj?.author ||
+        obj?.userName ||
+        obj?.username ||
+        'Anonymous';
+
+      const getRating = (obj) =>
+        obj?.stars ||
+        obj?.rating ||
+        obj?.score ||
+        0;
+
+      const getTime = (obj) =>
+        obj?.publishedAtDate ||
+        obj?.date ||
+        obj?.publishedDate ||
+        obj?.reviewDate ||
+        obj?.time ||
+        '';
+
       for (const item of items) {
         const arr = item.reviews || [];
 
         for (const r of arr) {
-          if (r.text && r.text.trim().length > 10) {
+          const text = getText(r);
+          if (text && text.trim().length > 10) {
             reviews.push({
               source,
-              author: r.name || 'Anonymous',
-              rating: r.stars || r.rating || 0,
-              text: r.text.trim(),
-              time: r.publishedAtDate || ''
+              author: getAuthor(r),
+              rating: getRating(r),
+              text: text.trim(),
+              time: getTime(r)
             });
           }
         }
 
-        if (item.text && item.text.trim().length > 10) {
+        const flatText = getText(item);
+        if (flatText && flatText.trim().length > 10) {
           reviews.push({
             source,
-            author: item.name || item.reviewerName || 'Anonymous',
-            rating: item.stars || item.rating || 0,
-            text: item.text.trim(),
-            time: item.publishedAtDate || ''
+            author: getAuthor(item),
+            rating: getRating(item),
+            text: flatText.trim(),
+            time: getTime(item)
           });
         }
       }
@@ -349,29 +382,36 @@ module.exports = async function handler(req, res) {
     const gData = await gRes.json();
 
     // --------------------------------------------------
-    // START YELP (safe)
+    // START YELP (direct URL only if provided)
     // --------------------------------------------------
     let safeYelpRunId = null;
 
     try {
-      const yRes = await fetch(
-        'https://api.apify.com/v2/acts/delicious_zebu/yelp-reviews-scraper/runs?token=' + APIFY_API_TOKEN,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            searchTerms: [searchQuery],
-            maxReviews: 50
-          })
-        }
-      );
+      if (yelpUrl && yelpUrl.trim()) {
+        console.log('Starting Yelp with direct URL:', yelpUrl.trim());
 
-      if (!yRes.ok) {
-        const errText = await yRes.text();
-        console.log('Yelp API error:', errText);
+        const yRes = await fetch(
+          'https://api.apify.com/v2/acts/agents~yelp-reviews/runs?token=' + APIFY_API_TOKEN,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              startUrls: [yelpUrl.trim()],
+              maxItems: 30,
+              sortBy: 'yelp'
+            })
+          }
+        );
+
+        if (!yRes.ok) {
+          const errText = await yRes.text();
+          console.log('Yelp API error:', errText);
+        } else {
+          const yData = await yRes.json();
+          safeYelpRunId = yData?.data?.id || null;
+        }
       } else {
-        const yData = await yRes.json();
-        safeYelpRunId = yData?.data?.id || null;
+        console.log('No Yelp URL provided. Skipping Yelp start.');
       }
     } catch (err) {
       console.log('Yelp failed:', err.message);

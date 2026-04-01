@@ -94,8 +94,8 @@ export default function App() {
   };
 
   const analyse = async () => {
-    if (!url.trim()) {
-      setError("Please paste a Google Maps URL.");
+    if (!url.trim() && !yelpUrl.trim()) {
+      setError("Please paste at least a Google Maps URL or a Yelp URL.");
       return;
     }
 
@@ -107,12 +107,12 @@ export default function App() {
     setRunData(null);
     setStage("fetching");
     setProgress(10);
-    setProgMsg("Connecting to Google Maps...");
+    setProgMsg(url.trim() ? "Connecting to Google Maps..." : "Connecting to Yelp...");
 
     try {
       await new Promise(r => setTimeout(r, 300));
       setProgress(20);
-      setProgMsg("Finding restaurant...");
+      setProgMsg(url.trim() ? "Finding restaurant..." : "Fetching Yelp business...");
 
       const r1 = await fetch("/api/reviews", {
         method:"POST",
@@ -287,7 +287,7 @@ export default function App() {
             <div style={{width:36, height:36, borderRadius:10, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>💓</div>
             <div>
               <p className="syne" style={{fontSize:15, fontWeight:800, color:C.white, margin:0}}>GuestPulse AI</p>
-              <p style={{fontSize:11, color:C.muted, margin:0}}>Paste any Google Maps restaurant link</p>
+              <p style={{fontSize:11, color:C.muted, margin:0}}>Paste a Google Maps link, Yelp URL, or both</p>
             </div>
           </div>
 

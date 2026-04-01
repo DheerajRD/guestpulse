@@ -31,9 +31,15 @@ module.exports = async function handler(req, res) {
         console.log(source, 'sample item:', JSON.stringify(items[0]).slice(0, 700));
       }
 
+      if (source === 'yelp' && Array.isArray(items) && items.length > 0 && items[0]?.demo === true) {
+        console.warn('Yelp returned demo data, ignoring dataset.');
+        return [];
+      }
+
       const getText = (obj) =>
         obj?.text ||
         obj?.reviewText ||
+        obj?.description ||
         obj?.comment ||
         obj?.content ||
         obj?.reviewBody ||
@@ -56,6 +62,7 @@ module.exports = async function handler(req, res) {
 
       const getTime = (obj) =>
         obj?.publishedAtDate ||
+        obj?.localizedDate ||
         obj?.date ||
         obj?.publishedDate ||
         obj?.reviewDate ||
@@ -382,7 +389,7 @@ module.exports = async function handler(req, res) {
     const gData = await gRes.json();
 
     // --------------------------------------------------
-    // START YELP (direct URL only if provided)
+    // START YELP (direct URL task)
     // --------------------------------------------------
     let safeYelpRunId = null;
 
@@ -391,14 +398,19 @@ module.exports = async function handler(req, res) {
         console.log('Starting Yelp with direct URL:', yelpUrl.trim());
 
         const yRes = await fetch(
-          'https://api.apify.com/v2/acts/agents~yelp-reviews/runs?token=' + APIFY_API_TOKEN,
+          'https://api.apify.com/v2/actor-tasks/dj_dheeraj/yelp-scraper-task/runs?token=' + APIFY_API_TOKEN,
           {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              startUrls: [yelpUrl.trim()],
-              maxItems: 30,
-              sortBy: 'yelp'
+              directUrls: [yelpUrl.trim()],
+              scrapeReviews: true,
+              maxReviewsPerBusiness: 20,
+              reviewSortOrder: 'date_desc',
+              proxyConfiguration: {
+                useApifyProxy: true,
+                apifyProxyGroups: ['RESIDENTIAL']
+              }
             })
           }
         );

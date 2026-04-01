@@ -150,7 +150,17 @@ module.exports = async function handler(req, res) {
       ];
 
       if (allReviews.length === 0) {
-        return res.status(404).json({ error: 'No reviews found from any source.' });
+        return res.status(200).json({
+          status: 'done',
+          reviews: [],
+          total: 0,
+          sources: {
+            google: gResult.reviews.length,
+            yelp: yResult.reviews.length,
+            tripadvisor: tResult.reviews.length,
+          },
+          warning: 'No reviews were returned from the provided source(s).'
+        });
       }
 
       return res.status(200).json({

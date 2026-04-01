@@ -75,6 +75,7 @@ const ReviewCard = ({review, platformColor, platformLabel}) => (
 export default function App() {
   const [url, setUrl] = useState("");
   const [addressHint, setAddressHint] = useState("");
+  const [yelpUrl, setYelpUrl] = useState("");
   const [restaurant, setRestaurant] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [rawReviews, setRawReviews] = useState([]);
@@ -118,7 +119,8 @@ export default function App() {
         headers:{"Content-Type":"application/json"},
         body: JSON.stringify({
           placeUrl: url.trim(),
-          addressHint: addressHint.trim()
+          addressHint: addressHint.trim(),
+          yelpUrl: yelpUrl.trim()
         })
       });
 
@@ -220,6 +222,7 @@ export default function App() {
   const reset = () => {
     setUrl("");
     setAddressHint("");
+    setYelpUrl("");
     setRestaurant(null);
     setAnalysis(null);
     setRawReviews([]);
@@ -301,6 +304,24 @@ export default function App() {
             value={addressHint}
             onChange={e => setAddressHint(e.target.value)}
             placeholder="Optional: address, area, or ZIP to improve Yelp/TripAdvisor matching"
+            style={{
+              width: "100%",
+              background: C.black2,
+              border: `1.5px solid ${C.border}`,
+              borderRadius: 12,
+              padding: "12px 16px",
+              color: C.white,
+              fontSize: 13,
+              fontFamily: "inherit",
+              marginBottom: 10
+            }}
+          />
+
+          <input
+            type="text"
+            value={yelpUrl}
+            onChange={e => setYelpUrl(e.target.value)}
+            placeholder="Optional: Yelp business URL for exact Yelp reviews"
             style={{
               width: "100%",
               background: C.black2,

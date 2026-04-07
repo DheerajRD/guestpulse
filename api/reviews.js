@@ -150,17 +150,7 @@ module.exports = async function handler(req, res) {
       ];
 
       if (allReviews.length === 0) {
-        return res.status(200).json({
-          status: 'done',
-          reviews: [],
-          total: 0,
-          sources: {
-            google: gResult.reviews.length,
-            yelp: yResult.reviews.length,
-            tripadvisor: tResult.reviews.length,
-          },
-          warning: 'No reviews were returned from the provided source(s).'
-        });
+        return res.status(404).json({ error: 'No reviews found from any source.' });
       }
 
       return res.status(200).json({
@@ -176,7 +166,7 @@ module.exports = async function handler(req, res) {
     }
 
     // --------------------------------------------------
-    // FIND PLACE ID (Google only if placeUrl exists)
+    // FIND PLACE ID (improved exact-match logic)
     // --------------------------------------------------
     let placeId = directId || null;
 
@@ -345,90 +335,58 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    if (!placeId && !yelpUrl) {
+    if (!placeId) {
       return res.status(400).json({ error: 'Could not find restaurant.' });
     }
 
     // --------------------------------------------------
-    // GET DETAILS (Google if available, fallback for Yelp-only)
+    // GET DETAILS
     // --------------------------------------------------
-    let place = null;
-    let city = '';
-    let cleanUrl = null;
-    let searchQuery = '';
+    const detRes = await fetch(
+      'https://maps.googleapis.com/maps/api/place/details/json?place_id=' +
+        placeId +
+        '&fields=name,rating,user_ratings_total,formatted_address,geometry,address_components&key=' +
+        GOOGLE_API_KEY
+    );
 
-    if (placeId) {
-      const detRes = await fetch(
-        'https://maps.googleapis.com/maps/api/place/details/json?place_id=' +
-          placeId +
-          '&fields=name,rating,user_ratings_total,formatted_address,geometry,address_components&key=' +
-          GOOGLE_API_KEY
-      );
+    const detData = await detRes.json();
 
-      const detData = await detRes.json();
-
-      if (detData.status !== 'OK') {
-        return res.status(500).json({ error: 'Google Place Details failed.' });
-      }
-
-      place = detData.result;
-      const addressParts = (place.formatted_address || '').split(',');
-      city = addressParts.length > 1 ? addressParts[1].trim() : '';
-      cleanUrl = 'https://www.google.com/maps/place/?q=place_id:' + placeId;
-
-      searchQuery = [
-        place.name || '',
-        place.formatted_address || '',
-        city || '',
-        addressHint || ''
-      ].join(' ').trim();
-    } else {
-      const fallbackName = (() => {
-        try {
-          const u = new URL(yelpUrl);
-          const slug = (u.pathname.split('/').pop() || '').replace(/-/g, ' ').trim();
-          return slug || 'Yelp Business';
-        } catch {
-          return 'Yelp Business';
-        }
-      })();
-
-      place = {
-        name: fallbackName,
-        formatted_address: addressHint || 'Yelp URL provided',
-        rating: null,
-        user_ratings_total: null
-      };
-
-      city = '';
-      cleanUrl = null;
-      searchQuery = [fallbackName, addressHint || ''].join(' ').trim();
+    if (detData.status !== 'OK') {
+      return res.status(500).json({ error: 'Google Place Details failed.' });
     }
+
+    const place = detData.result;
+    const addressParts = (place.formatted_address || '').split(',');
+    const city = addressParts.length > 1 ? addressParts[1].trim() : '';
+    const cleanUrl = 'https://www.google.com/maps/place/?q=place_id:' + placeId;
+
+    const searchQuery = [
+      place.name || '',
+      place.formatted_address || '',
+      city || '',
+      addressHint || ''
+    ].join(' ').trim();
 
     console.log('Search query for Yelp/TripAdvisor:', searchQuery);
 
     // --------------------------------------------------
     // START GOOGLE
     // --------------------------------------------------
-    let gData = null;
+    const gRes = await fetch(
+      'https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startUrls: [{ url: cleanUrl }],
+          maxReviews: 150,
+          reviewsSort: 'newest',
+          language: 'en'
+        })
+      }
+    );
 
-    if (cleanUrl) {
-      const gRes = await fetch(
-        'https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=' + APIFY_API_TOKEN,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            startUrls: [{ url: cleanUrl }],
-            maxReviews: 150,
-            reviewsSort: 'newest',
-            language: 'en'
-          })
-        }
-      );
-
-      gData = await gRes.json();
-    }
+    const gData = await gRes.json();
 
     // --------------------------------------------------
     // START YELP (direct URL task)
@@ -474,34 +432,32 @@ module.exports = async function handler(req, res) {
     console.log('Yelp runId:', safeYelpRunId);
 
     // --------------------------------------------------
-    // START TRIPADVISOR (safe, Google-based only)
+    // START TRIPADVISOR (safe)
     // --------------------------------------------------
     let safeTripRunId = null;
 
-    if (cleanUrl) {
-      try {
-        const tRes = await fetch(
-          'https://api.apify.com/v2/acts/maxcopell~tripadvisor-reviews/runs?token=' + APIFY_API_TOKEN,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              queries: [searchQuery],
-              maxReviews: 50
-            })
-          }
-        );
-
-        if (!tRes.ok) {
-          const errText = await tRes.text();
-          console.log('TripAdvisor API error:', errText);
-        } else {
-          const tData = await tRes.json();
-          safeTripRunId = tData?.data?.id || null;
+    try {
+      const tRes = await fetch(
+        'https://api.apify.com/v2/acts/maxcopell~tripadvisor-reviews/runs?token=' + APIFY_API_TOKEN,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            queries: [searchQuery],
+            maxReviews: 50
+          })
         }
-      } catch (err) {
-        console.log('TripAdvisor failed:', err.message);
+      );
+
+      if (!tRes.ok) {
+        const errText = await tRes.text();
+        console.log('TripAdvisor API error:', errText);
+      } else {
+        const tData = await tRes.json();
+        safeTripRunId = tData?.data?.id || null;
       }
+    } catch (err) {
+      console.log('TripAdvisor failed:', err.message);
     }
 
     console.log('TripAdvisor runId:', safeTripRunId);
@@ -510,14 +466,14 @@ module.exports = async function handler(req, res) {
       status: 'started',
       runId: gData?.data?.id || null,
       yelpRunId: safeYelpRunId,
-      tripRunId: cleanUrl ? safeTripRunId : null,
+      tripRunId: safeTripRunId,
       restaurant: {
         name: place.name,
         city,
         address: place.formatted_address,
         rating: place.rating,
         totalReviews: place.user_ratings_total,
-        placeId: placeId || null
+        placeId
       }
     });
   } catch (err) {

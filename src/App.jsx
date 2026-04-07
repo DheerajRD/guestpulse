@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -16,77 +16,89 @@ import {
 } from "recharts";
 
 const C = {
-  black:"#07090f", black2:"#0d1117", black3:"#161b27",
-  green:"#00e676", green2:"#00c853", greenDim:"rgba(0,230,118,0.1)", greenBorder:"rgba(0,230,118,0.22)",
-  blue:"#2979ff", blue2:"#448aff", blueDim:"rgba(41,121,255,0.1)", blueBorder:"rgba(41,121,255,0.22)",
-  red:"#ff5252", redDim:"rgba(255,82,82,0.08)", redBorder:"rgba(255,82,82,0.2)",
-  purple:"#b388ff", purpleDim:"rgba(179,136,255,0.12)", purpleBorder:"rgba(179,136,255,0.22)",
-  white:"#e8eaf6", muted:"rgba(232,234,246,0.45)", border:"rgba(232,234,246,0.07)",
+  bg: "#060816",
+  bg2: "#0b1020",
+  panel: "rgba(14,18,35,0.82)",
+  panel2: "rgba(18,24,45,0.88)",
+  card: "rgba(255,255,255,0.05)",
+  cardStrong: "rgba(255,255,255,0.08)",
+  border: "rgba(255,255,255,0.08)",
+  borderStrong: "rgba(255,255,255,0.12)",
+  white: "#edf2ff",
+  muted: "rgba(237,242,255,0.62)",
+  muted2: "rgba(237,242,255,0.38)",
+  blue: "#4f8cff",
+  cyan: "#22d3ee",
+  green: "#00e676",
+  green2: "#34d399",
+  red: "#ff5c7a",
+  amber: "#fbbf24",
+  purple: "#b388ff",
+  shadow: "0 18px 60px rgba(0,0,0,0.35)",
 };
 
-const healthColor = s => s > 70 ? C.green : s > 40 ? C.blue2 : C.red;
+const healthColor = (s) => (s > 70 ? C.green : s > 40 ? C.cyan : C.red);
 
 function fixAnalysis(raw, count) {
   if (!raw || typeof raw !== "object") return null;
-  const a = (raw.analysis && typeof raw.analysis === "object") ? raw.analysis : raw;
+  const a = raw.analysis && typeof raw.analysis === "object" ? raw.analysis : raw;
+
   if (!a.healthScore || a.healthScore === 0) a.healthScore = 50;
   a.totalAnalysed = count || a.totalAnalysed || 0;
-  if (!a.sentiment) a.sentiment = { positive:0, neutral:0, negative:0 };
+  if (!a.sentiment) a.sentiment = { positive: 0, neutral: 0, negative: 0 };
   if (!a.topComplaints) a.topComplaints = [];
   if (!a.topPraises) a.topPraises = [];
   if (!a.bestDishes) a.bestDishes = [];
   if (!a.dishesToAvoid) a.dishesToAvoid = [];
-  if (!a.priceRange) a.priceRange = { avgMealForOne:"—", avgMealForTwo:"—", valueRating:3, valueLabel:"Fair" };
+  if (!a.priceRange) {
+    a.priceRange = {
+      avgMealForOne: "—",
+      avgMealForTwo: "—",
+      valueRating: 3,
+      valueLabel: "Fair",
+    };
+  }
   if (!a.bestTimeToVisit) a.bestTimeToVisit = "Weekday lunch";
-  if (!a.forOwner) a.forOwner = { conclusion:"Reviews show mixed experiences.", urgentAction:"Review feedback", improvements:["Improve service","Maintain quality","Respond to reviews"] };
-  if (!a.forCustomer) a.forCustomer = { conclusion:"Mixed experiences.", mustTry:"Ask staff", avoid:"Peak hours", verdict:"mixed" };
-  if (!a.hygiene) a.hygiene = { score:7, label:"Good", kitchen:"Unknown", tables:"Unknown", staff:"Unknown", restrooms:"Unknown", ownerAlert:null };
-  if (!a.accessibility) a.accessibility = { parking:{available:null,detail:null}, wheelchair:{accessible:null,detail:null}, kidsChairs:{available:null,detail:null}, wifi:{available:null,detail:null}, noiseLevel:null, restrooms:null };
+  if (!a.forOwner) {
+    a.forOwner = {
+      conclusion: "Reviews show mixed experiences.",
+      urgentAction: "Review feedback",
+      improvements: ["Improve service", "Maintain quality", "Respond to reviews"],
+    };
+  }
+  if (!a.forCustomer) {
+    a.forCustomer = {
+      conclusion: "Mixed experiences.",
+      mustTry: "Ask staff",
+      avoid: "Peak hours",
+      verdict: "mixed",
+    };
+  }
+  if (!a.hygiene) {
+    a.hygiene = {
+      score: 7,
+      label: "Good",
+      kitchen: "Unknown",
+      tables: "Unknown",
+      staff: "Unknown",
+      restrooms: "Unknown",
+      ownerAlert: null,
+    };
+  }
+  if (!a.accessibility) {
+    a.accessibility = {
+      parking: { available: null, detail: null },
+      wheelchair: { accessible: null, detail: null },
+      kidsChairs: { available: null, detail: null },
+      wifi: { available: null, detail: null },
+      noiseLevel: null,
+      restrooms: null,
+    };
+  }
   if (!a.fakeReviewCount) a.fakeReviewCount = 0;
+
   return a;
 }
-
-const Card  = ({children, style={}}) => <div style={{background:C.black3, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:12, ...style}}>{children}</div>;
-const Lbl   = ({children}) => <p style={{fontSize:10, fontWeight:700, color:"rgba(232,234,246,0.3)", textTransform:"uppercase", letterSpacing:"1px", marginBottom:10}}>{children}</p>;
-const BarRow   = ({label, count, total, color}) => (
-  <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:10}}>
-    <span style={{fontSize:12, color:C.muted, width:120, flexShrink:0}}>{label}</span>
-    <div style={{flex:1, background:"rgba(232,234,246,0.06)", borderRadius:100, height:5, overflow:"hidden"}}>
-      <div style={{height:"100%", borderRadius:100, background:color, width:`${Math.min((count/Math.max(total,1))*300,100)}%`, transition:"width 1s ease"}}/>
-    </div>
-    <span style={{fontSize:12, fontWeight:700, color, width:26, textAlign:"right"}}>{count}</span>
-  </div>
-);
-const ImpRow = ({n, text}) => (
-  <div style={{display:"flex", gap:10, alignItems:"flex-start", background:C.black3, border:`1px solid ${C.border}`, borderRadius:10, padding:"10px 12px", marginBottom:8}}>
-    <div style={{width:22, height:22, borderRadius:"50%", background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:10, fontWeight:800, color:C.black, flexShrink:0}}>{n}</div>
-    <p style={{fontSize:12, color:C.muted, lineHeight:1.6, margin:0}}>{text}</p>
-  </div>
-);
-const InfoCard = ({icon, label, value, sub, color}) => (
-  <div style={{borderRadius:12, padding:"12px 14px", background:`${color}10`, border:`1px solid ${color}25`}}>
-    <div style={{fontSize:20, marginBottom:6}}>{icon}</div>
-    <div style={{fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px", color, marginBottom:4, opacity:0.7}}>{label}</div>
-    <div style={{fontSize:13, fontWeight:700, color:C.white}}>{value||"—"}</div>
-    {sub && <div style={{fontSize:11, color:C.muted, marginTop:3}}>{sub}</div>}
-  </div>
-);
-
-const ReviewCard = ({review, platformColor, platformLabel}) => (
-  <Card style={{padding:14}}>
-    <div style={{display:"flex", justifyContent:"space-between", gap:10, marginBottom:8, alignItems:"center"}}>
-      <div>
-        <div style={{fontSize:13, fontWeight:700, color:C.white}}>{review.author || "Anonymous"}</div>
-        <div style={{fontSize:11, color:C.muted}}>{review.time || "Unknown date"}</div>
-      </div>
-      <div style={{textAlign:"right"}}>
-        <div style={{fontSize:12, fontWeight:700, color:platformColor}}>{platformLabel}</div>
-        <div style={{fontSize:12, color:C.white}}>⭐ {review.rating || 0}</div>
-      </div>
-    </div>
-    <p style={{fontSize:13, color:C.muted, lineHeight:1.6, margin:0}}>{review.text}</p>
-  </Card>
-);
 
 function getMonthLabel(dateInput) {
   if (!dateInput) return "Unknown";
@@ -97,9 +109,18 @@ function getMonthLabel(dateInput) {
 
   const raw = String(dateInput).toLowerCase();
   const months = [
-    ["jan", "Jan"], ["feb", "Feb"], ["mar", "Mar"], ["apr", "Apr"],
-    ["may", "May"], ["jun", "Jun"], ["jul", "Jul"], ["aug", "Aug"],
-    ["sep", "Sep"], ["oct", "Oct"], ["nov", "Nov"], ["dec", "Dec"]
+    ["jan", "Jan"],
+    ["feb", "Feb"],
+    ["mar", "Mar"],
+    ["apr", "Apr"],
+    ["may", "May"],
+    ["jun", "Jun"],
+    ["jul", "Jul"],
+    ["aug", "Aug"],
+    ["sep", "Sep"],
+    ["oct", "Oct"],
+    ["nov", "Nov"],
+    ["dec", "Dec"],
   ];
   for (const [find, out] of months) {
     if (raw.includes(find)) return out;
@@ -111,39 +132,54 @@ function buildChartData(rawReviews, analysis, sourceCounts) {
   const sourceData = [
     { name: "Google", reviews: sourceCounts.google || 0 },
     { name: "Yelp", reviews: sourceCounts.yelp || 0 },
-    { name: "TripAdvisor", reviews: sourceCounts.tripadvisor || 0 }
+    { name: "TripAdvisor", reviews: sourceCounts.tripadvisor || 0 },
   ];
 
   const sentimentData = [
-    { name: "Positive", value: analysis?.sentiment?.positive || 0, fill: C.green },
-    { name: "Neutral", value: analysis?.sentiment?.neutral || 0, fill: C.blue2 },
+    { name: "Positive", value: analysis?.sentiment?.positive || 0, fill: C.green2 },
+    { name: "Neutral", value: analysis?.sentiment?.neutral || 0, fill: C.cyan },
     { name: "Negative", value: analysis?.sentiment?.negative || 0, fill: C.red },
   ];
 
   const ratingBuckets = {};
-  rawReviews.forEach(r => {
+  rawReviews.forEach((r) => {
     const m = getMonthLabel(r.time);
     if (!ratingBuckets[m]) ratingBuckets[m] = { total: 0, count: 0 };
     ratingBuckets[m].total += Number(r.rating) || 0;
     ratingBuckets[m].count += 1;
   });
 
-  const monthOrder = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Unknown"];
+  const monthOrder = [
+    "Jan",
+    "Feb",
+    "Mar",
+    "Apr",
+    "May",
+    "Jun",
+    "Jul",
+    "Aug",
+    "Sep",
+    "Oct",
+    "Nov",
+    "Dec",
+    "Unknown",
+  ];
+
   const ratingTrend = monthOrder
-    .filter(m => ratingBuckets[m])
-    .map(m => ({
+    .filter((m) => ratingBuckets[m])
+    .map((m) => ({
       month: m,
-      rating: Number((ratingBuckets[m].total / Math.max(ratingBuckets[m].count, 1)).toFixed(1))
+      rating: Number((ratingBuckets[m].total / Math.max(ratingBuckets[m].count, 1)).toFixed(1)),
     }));
 
-  const complaintData = (analysis?.topComplaints || []).slice(0, 6).map(c => ({
+  const complaintData = (analysis?.topComplaints || []).slice(0, 6).map((c) => ({
     issue: c.issue,
-    mentions: c.count
+    mentions: c.count,
   }));
 
-  const praiseData = (analysis?.topPraises || []).slice(0, 6).map(p => ({
+  const praiseData = (analysis?.topPraises || []).slice(0, 6).map((p) => ({
     aspect: p.aspect,
-    mentions: p.count
+    mentions: p.count,
   }));
 
   const recipeMap = {};
@@ -152,9 +188,9 @@ function buildChartData(rawReviews, analysis, sourceCounts) {
     recipeMap[dish] += Math.max(10 - i * 2, 4);
   });
 
-  rawReviews.forEach(r => {
+  rawReviews.forEach((r) => {
     const text = (r.text || "").toLowerCase();
-    Object.keys(recipeMap).forEach(dish => {
+    Object.keys(recipeMap).forEach((dish) => {
       if (text.includes(dish.toLowerCase())) recipeMap[dish] += 1;
     });
   });
@@ -170,8 +206,209 @@ function buildChartData(rawReviews, analysis, sourceCounts) {
     ratingTrend,
     complaintData,
     praiseData,
-    recipeTrend
+    recipeTrend,
   };
+}
+
+const glass = (extra = {}) => ({
+  background: C.panel,
+  border: `1px solid ${C.border}`,
+  boxShadow: C.shadow,
+  backdropFilter: "blur(18px)",
+  WebkitBackdropFilter: "blur(18px)",
+  ...extra,
+});
+
+const chartTooltipStyle = {
+  background: "#0b1020",
+  border: `1px solid ${C.borderStrong}`,
+  borderRadius: 12,
+  color: C.white,
+};
+
+function ShellCard({ children, style = {} }) {
+  return (
+    <div
+      style={{
+        ...glass(),
+        borderRadius: 24,
+        padding: 18,
+        ...style,
+      }}
+    >
+      {children}
+    </div>
+  );
+}
+
+function SectionCard({ title, sub, right, children, style = {} }) {
+  return (
+    <div
+      style={{
+        ...glass({ background: C.panel2 }),
+        borderRadius: 22,
+        padding: 18,
+        ...style,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "start",
+          justifyContent: "space-between",
+          gap: 12,
+          marginBottom: 14,
+        }}
+      >
+        <div>
+          <div style={{ color: C.white, fontSize: 16, fontWeight: 700 }}>{title}</div>
+          {sub ? <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{sub}</div> : null}
+        </div>
+        {right}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Pill({ children, color = C.cyan, bg = "rgba(34,211,238,0.12)" }) {
+  return (
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        padding: "6px 12px",
+        borderRadius: 999,
+        border: `1px solid ${color}33`,
+        background: bg,
+        color,
+        fontSize: 12,
+        fontWeight: 700,
+      }}
+    >
+      {children}
+    </span>
+  );
+}
+
+function StatCard({ label, value, sub, accent }) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.045)",
+        border: `1px solid ${C.border}`,
+        borderRadius: 20,
+        padding: 16,
+      }}
+    >
+      <div style={{ color: accent || C.cyan, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>
+        {label}
+      </div>
+      <div style={{ color: C.white, fontSize: 30, fontWeight: 800, marginTop: 8 }}>{value}</div>
+      {sub ? <div style={{ color: C.muted, fontSize: 12, marginTop: 6 }}>{sub}</div> : null}
+    </div>
+  );
+}
+
+function MiniInfo({ icon, label, value, color = C.cyan }) {
+  return (
+    <div
+      style={{
+        background: `${color}12`,
+        border: `1px solid ${color}30`,
+        borderRadius: 18,
+        padding: 14,
+      }}
+    >
+      <div style={{ fontSize: 18 }}>{icon}</div>
+      <div style={{ color, fontSize: 10, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", marginTop: 8 }}>
+        {label}
+      </div>
+      <div style={{ color: C.white, fontSize: 14, fontWeight: 700, marginTop: 4 }}>{value || "—"}</div>
+    </div>
+  );
+}
+
+function ReviewCard({ review, platformColor, platformLabel }) {
+  return (
+    <div
+      style={{
+        background: "rgba(255,255,255,0.035)",
+        border: `1px solid ${C.border}`,
+        borderRadius: 18,
+        padding: 14,
+      }}
+    >
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "start", marginBottom: 10 }}>
+        <div>
+          <div style={{ color: C.white, fontSize: 14, fontWeight: 700 }}>{review.author || "Anonymous"}</div>
+          <div style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{review.time || "Unknown date"}</div>
+        </div>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ color: platformColor, fontSize: 12, fontWeight: 800 }}>{platformLabel}</div>
+          <div style={{ color: C.white, fontSize: 12, marginTop: 4 }}>⭐ {review.rating || 0}</div>
+        </div>
+      </div>
+      <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.65 }}>{review.text}</div>
+    </div>
+  );
+}
+
+function ProgressRow({ label, value, total, color }) {
+  return (
+    <div style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+        <div style={{ color: C.muted, fontSize: 12 }}>{label}</div>
+        <div style={{ color, fontSize: 12, fontWeight: 700 }}>{value}</div>
+      </div>
+      <div style={{ height: 7, background: "rgba(255,255,255,0.06)", borderRadius: 999, overflow: "hidden" }}>
+        <div
+          style={{
+            height: "100%",
+            width: `${Math.min((value / Math.max(total, 1)) * 100, 100)}%`,
+            background: color,
+            borderRadius: 999,
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ActionRow({ index, text }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        gap: 12,
+        alignItems: "start",
+        padding: 12,
+        borderRadius: 16,
+        background: "rgba(255,255,255,0.035)",
+        border: `1px solid ${C.border}`,
+        marginBottom: 10,
+      }}
+    >
+      <div
+        style={{
+          minWidth: 24,
+          width: 24,
+          height: 24,
+          borderRadius: 999,
+          background: `linear-gradient(135deg, ${C.blue}, ${C.green2})`,
+          color: "#04111b",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 11,
+          fontWeight: 800,
+        }}
+      >
+        {index}
+      </div>
+      <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.65 }}>{text}</div>
+    </div>
+  );
 }
 
 export default function App() {
@@ -186,12 +423,11 @@ export default function App() {
   const [progress, setProgress] = useState(0);
   const [progMsg, setProgMsg] = useState("");
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState("owner");
+  const [activeTab, setActiveTab] = useState("charts");
   const [toast, setToast] = useState(null);
-  const [runData, setRunData] = useState(null);
 
-  const showToast = (msg, color=C.green) => {
-    setToast({msg,color});
+  const showToast = (msg, color = C.green) => {
+    setToast({ msg, color });
     setTimeout(() => setToast(null), 3000);
   };
 
@@ -206,79 +442,73 @@ export default function App() {
     setAnalysis(null);
     setRawReviews([]);
     setSourceCounts({ google: 0, yelp: 0, tripadvisor: 0 });
-    setRunData(null);
     setStage("fetching");
     setProgress(10);
     setProgMsg("Connecting to Google Maps...");
 
     try {
-      await new Promise(r => setTimeout(r, 300));
-      setProgress(20);
-      setProgMsg("Finding restaurant...");
+      await new Promise((r) => setTimeout(r, 250));
+      setProgress(18);
+      setProgMsg("Finding restaurant profile...");
 
       const r1 = await fetch("/api/reviews", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           placeUrl: url.trim(),
           addressHint: addressHint.trim(),
-          yelpUrl: yelpUrl.trim()
-        })
+          yelpUrl: yelpUrl.trim(),
+        }),
       });
 
       const t1 = await r1.text();
       let d1;
       try {
         d1 = JSON.parse(t1);
-      } catch(e) {
-        throw new Error("Server error: " + t1.substring(0,120));
+      } catch {
+        throw new Error("Server error: " + t1.substring(0, 150));
       }
 
       if (!r1.ok) throw new Error(d1.error || "Failed to start review fetch");
       if (!d1.restaurant) throw new Error("Could not find restaurant.");
 
       setRestaurant(d1.restaurant);
-      setRunData(d1);
-
-      setProgress(30);
-      setProgMsg("Apify started — fetching recent reviews...");
+      setProgress(28);
+      setProgMsg("Review sources connected — pulling latest reviews...");
 
       let reviews = null;
       let counts = null;
 
       for (let i = 0; i < 24; i++) {
-        await new Promise(r => setTimeout(r, 5000));
-        setProgress(30 + Math.min(i * 2, 28));
-        setProgMsg("Reading reviews... (" + ((i + 1) * 5) + "s)");
+        await new Promise((r) => setTimeout(r, 5000));
+        setProgress(30 + Math.min(i * 2, 26));
+        setProgMsg(`Collecting review data... (${(i + 1) * 5}s)`);
 
         const r2 = await fetch("/api/reviews", {
-          method:"POST",
-          headers:{"Content-Type":"application/json"},
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             action: "check",
             runId: d1.runId,
             yelpRunId: d1.yelpRunId,
-            tripRunId: d1.tripRunId
-          })
+            tripRunId: d1.tripRunId,
+          }),
         });
 
         const t2 = await r2.text();
         let d2;
         try {
           d2 = JSON.parse(t2);
-        } catch(e) {
+        } catch {
           continue;
         }
 
         if (!r2.ok) throw new Error(d2.error || "Failed");
-
         if (d2.status === "done" && d2.reviews && d2.reviews.length > 0) {
           reviews = d2.reviews;
           counts = d2.sources || { google: 0, yelp: 0, tripadvisor: 0 };
           break;
         }
-
-        if (d2.status === "running") continue;
       }
 
       if (!reviews || reviews.length === 0) throw new Error("No reviews found. Try again.");
@@ -286,21 +516,24 @@ export default function App() {
       setRawReviews(reviews);
       setSourceCounts(counts || { google: 0, yelp: 0, tripadvisor: 0 });
 
-      setProgress(65);
-      setProgMsg("Claude AI is analysing " + reviews.length + " reviews...");
+      setProgress(68);
+      setProgMsg(`Claude AI is analysing ${reviews.length} reviews...`);
 
       const r3 = await fetch("/api/analyse", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body: JSON.stringify({ reviews, restaurantName: d1.restaurant.name })
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reviews,
+          restaurantName: d1.restaurant.name,
+        }),
       });
 
       const t3 = await r3.text();
       let d3;
       try {
         d3 = JSON.parse(t3);
-      } catch(e) {
-        throw new Error("Analysis error: " + t3.substring(0,120));
+      } catch {
+        throw new Error("Analysis error: " + t3.substring(0, 150));
       }
 
       if (!r3.ok) throw new Error(d3.error || "Analysis failed");
@@ -309,13 +542,13 @@ export default function App() {
       if (!fixed) throw new Error("Empty analysis data. Please try again.");
 
       setProgress(100);
-      setProgMsg("Done! " + reviews.length + " reviews analysed.");
-      await new Promise(r => setTimeout(r, 500));
+      setProgMsg(`Done — ${reviews.length} reviews analysed.`);
+      await new Promise((r) => setTimeout(r, 350));
       setAnalysis(fixed);
       setStage("done");
       setActiveTab("charts");
-      showToast("✅ Analysis complete!");
-    } catch(e) {
+      showToast("✅ Premium analysis ready");
+    } catch (e) {
       setError(e.message || "Something went wrong.");
       setStage("error");
       setProgress(0);
@@ -333,510 +566,926 @@ export default function App() {
     setStage("idle");
     setProgress(0);
     setError("");
-    setRunData(null);
-    setActiveTab("owner");
+    setActiveTab("charts");
   };
+
+  const chartData = useMemo(
+    () => buildChartData(rawReviews, analysis, sourceCounts),
+    [rawReviews, analysis, sourceCounts]
+  );
 
   const hs = analysis?.healthScore || 0;
   const isLoading = stage === "fetching";
 
-  const googleReviews = rawReviews.filter(r => r.source === "google");
-  const yelpReviews = rawReviews.filter(r => r.source === "yelp");
-  const tripReviews = rawReviews.filter(r => r.source === "tripadvisor");
+  const googleReviews = rawReviews.filter((r) => r.source === "google");
+  const yelpReviews = rawReviews.filter((r) => r.source === "yelp");
+  const tripReviews = rawReviews.filter((r) => r.source === "tripadvisor");
 
-  const chartData = buildChartData(rawReviews, analysis, sourceCounts);
-
-  const VERDICT = {
-    recommended: { color:C.green,  bg:C.greenDim, border:C.greenBorder, icon:"✅", label:"Recommended" },
-    mixed:       { color:C.blue2,  bg:C.blueDim,  border:C.blueBorder,  icon:"⚡", label:"Mixed Reviews" },
-    avoid:       { color:C.red,    bg:C.redDim,   border:C.redBorder,   icon:"🚫", label:"Avoid For Now" },
+  const verdictStyles = {
+    recommended: {
+      color: C.green2,
+      bg: "rgba(52,211,153,0.12)",
+      border: "rgba(52,211,153,0.3)",
+      icon: "✅",
+      label: "Recommended",
+    },
+    mixed: {
+      color: C.cyan,
+      bg: "rgba(34,211,238,0.12)",
+      border: "rgba(34,211,238,0.28)",
+      icon: "⚡",
+      label: "Mixed Reviews",
+    },
+    avoid: {
+      color: C.red,
+      bg: "rgba(255,92,122,0.12)",
+      border: "rgba(255,92,122,0.28)",
+      icon: "🚫",
+      label: "Avoid For Now",
+    },
   };
-  const v = VERDICT[analysis?.forCustomer?.verdict] || VERDICT.mixed;
+
+  const verdict = verdictStyles[analysis?.forCustomer?.verdict] || verdictStyles.mixed;
 
   return (
-    <div style={{minHeight:"100vh", background:C.black, color:C.white, fontFamily:"'DM Sans','Segoe UI',sans-serif"}}>
+    <div
+      style={{
+        minHeight: "100vh",
+        background: `
+          radial-gradient(circle at top left, rgba(79,140,255,0.18), transparent 28%),
+          radial-gradient(circle at top right, rgba(34,211,238,0.16), transparent 22%),
+          radial-gradient(circle at bottom center, rgba(179,136,255,0.12), transparent 24%),
+          linear-gradient(180deg, #060816 0%, #090d1a 48%, #060816 100%)
+        `,
+        color: C.white,
+        fontFamily: "'Inter','Segoe UI',sans-serif",
+      }}
+    >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
-        *{box-sizing:border-box;margin:0;padding:0}
-        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-thumb{background:#1e2535;border-radius:4px}
-        .syne{font-family:'Syne',sans-serif}
-        .fade{animation:fu .4s ease}@keyframes fu{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
-        .pulse{animation:pl 1.8s ease-in-out infinite}@keyframes pl{0%,100%{opacity:1}50%{opacity:.35}}
-        .prog{transition:width .5s ease}
-        .tbtn{cursor:pointer;border:1px solid rgba(232,234,246,0.07);background:transparent;color:rgba(232,234,246,0.4);border-radius:9px;padding:7px 14px;font-size:12px;font-weight:700;font-family:inherit;transition:all .15s;white-space:nowrap}
-        .tbtn.on{background:rgba(0,230,118,0.1);border-color:rgba(0,230,118,0.22);color:#00e676}
-        input:focus, textarea:focus{border-color:#2979ff!important;outline:none}
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        *{box-sizing:border-box}
+        html{scroll-behavior:smooth}
+        body{margin:0}
+        ::-webkit-scrollbar{width:8px;height:8px}
+        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:999px}
+        .app-wrap{max-width:1380px;margin:0 auto;padding:22px 18px 60px}
+        .hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
+        .main-grid{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;margin-top:18px}
+        .analytics-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px}
+        .stats-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+        .two-col{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+        .three-col{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+        .tab-btn{
+          width:100%;
+          text-align:left;
+          padding:11px 12px;
+          border-radius:14px;
+          border:1px solid rgba(255,255,255,0.07);
+          background:rgba(255,255,255,0.02);
+          color:rgba(237,242,255,0.55);
+          cursor:pointer;
+          font-size:13px;
+          font-weight:700;
+          transition:all .18s ease;
+        }
+        .tab-btn:hover{background:rgba(255,255,255,0.05);color:#edf2ff}
+        .tab-btn.active{
+          color:#edf2ff;
+          border-color:rgba(34,211,238,0.28);
+          background:linear-gradient(135deg, rgba(79,140,255,0.15), rgba(34,211,238,0.10));
+          box-shadow:inset 0 0 0 1px rgba(34,211,238,0.12);
+        }
+        .input{
+          width:100%;
+          background:rgba(255,255,255,0.03);
+          border:1px solid rgba(255,255,255,0.08);
+          color:#edf2ff;
+          border-radius:16px;
+          padding:14px 16px;
+          font-size:13px;
+          outline:none;
+          transition:border .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+        .input:focus{
+          border-color:rgba(34,211,238,0.35);
+          box-shadow:0 0 0 4px rgba(34,211,238,0.08);
+          background:rgba(255,255,255,0.04);
+        }
+        .cta{
+          width:100%;
+          border:none;
+          cursor:pointer;
+          padding:15px 18px;
+          border-radius:18px;
+          background:linear-gradient(135deg, #4f8cff 0%, #22d3ee 52%, #00e676 100%);
+          color:#04111b;
+          font-size:14px;
+          font-weight:800;
+          transition:transform .15s ease, opacity .15s ease;
+        }
+        .cta:hover{transform:translateY(-1px)}
+        .cta:disabled{opacity:.6;cursor:not-allowed;transform:none}
+        .fadeIn{animation:fadeIn .35s ease}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+        @media (max-width: 1120px){
+          .hero-grid,.main-grid{grid-template-columns:1fr}
+          .stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+        }
+        @media (max-width: 760px){
+          .stats-grid,.two-col,.three-col{grid-template-columns:1fr}
+          .app-wrap{padding:16px 12px 40px}
+        }
       `}</style>
 
       {toast && (
-        <div style={{position:"fixed", top:20, right:20, zIndex:9999, background:toast.color, color:C.black, padding:"10px 20px", borderRadius:10, fontSize:13, fontWeight:700, boxShadow:"0 4px 20px rgba(0,0,0,.5)"}}>
+        <div
+          style={{
+            position: "fixed",
+            top: 18,
+            right: 18,
+            zIndex: 9999,
+            background: toast.color,
+            color: "#08111a",
+            padding: "10px 16px",
+            borderRadius: 12,
+            fontSize: 13,
+            fontWeight: 800,
+            boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+          }}
+        >
           {toast.msg}
         </div>
       )}
 
-      <nav style={{background:C.black2, borderBottom:`1px solid ${C.border}`, padding:"13px 22px", display:"flex", alignItems:"center", justifyContent:"space-between"}}>
-        <div style={{display:"flex", alignItems:"center", gap:10, cursor:"pointer"}} onClick={reset}>
-          <div style={{width:32, height:32, borderRadius:9, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:16}}>💓</div>
-          <span className="syne" style={{fontSize:17, fontWeight:800, background:`linear-gradient(135deg,${C.blue2},${C.green})`, WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent"}}>GuestPulse</span>
-          <span style={{fontSize:11, color:C.blue2, fontWeight:700, background:C.blueDim, border:`1px solid ${C.blueBorder}`, padding:"2px 8px", borderRadius:100}}>AI</span>
-        </div>
-        {analysis && (
-          <span style={{fontSize:12, color:healthColor(hs), fontWeight:700, background:`${healthColor(hs)}12`, border:`1px solid ${healthColor(hs)}25`, padding:"4px 12px", borderRadius:100}}>
-            💚 Health {hs}%
-          </span>
-        )}
-      </nav>
+      <div className="app-wrap">
+        <ShellCard
+          style={{
+            padding: 16,
+            position: "sticky",
+            top: 12,
+            zIndex: 100,
+            background: "rgba(8,12,26,0.82)",
+            marginBottom: 18,
+          }}
+        >
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }} onClick={reset}>
+              <div
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 16,
+                  background: "linear-gradient(135deg, #4f8cff, #22d3ee 48%, #00e676)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#04111b",
+                  fontWeight: 900,
+                  fontSize: 18,
+                  boxShadow: "0 14px 28px rgba(34,211,238,0.22)",
+                }}
+              >
+                GP
+              </div>
+              <div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: C.white }}>GuestPulse AI</div>
+                <div style={{ fontSize: 12, color: C.muted }}>Restaurant intelligence dashboard</div>
+              </div>
+            </div>
 
-      <div style={{maxWidth:1100, margin:"0 auto", padding:"32px 18px 80px"}}>
-        <Card style={{marginBottom:20}}>
-          <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:14}}>
-            <div style={{width:36, height:36, borderRadius:10, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>💓</div>
-            <div>
-              <p className="syne" style={{fontSize:15, fontWeight:800, color:C.white, margin:0}}>GuestPulse AI</p>
-              <p style={{fontSize:11, color:C.muted, margin:0}}>Paste any Google Maps restaurant link</p>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              <Pill>Multi-source reviews</Pill>
+              <Pill color={C.green2} bg="rgba(52,211,153,0.11)">
+                Claude-powered analysis
+              </Pill>
+              {analysis ? (
+                <Pill color={healthColor(hs)} bg={`${healthColor(hs)}18`}>
+                  Health {hs}%
+                </Pill>
+              ) : null}
             </div>
           </div>
+        </ShellCard>
 
-          <textarea
-            value={url}
-            onChange={e => setUrl(e.target.value)}
-            placeholder="https://maps.google.com/maps/place/your-restaurant..."
-            rows={3}
-            style={{width:"100%", background:C.black2, border:`1.5px solid ${C.border}`, borderRadius:12, padding:"12px 16px", color:C.white, fontSize:13, fontFamily:"inherit", marginBottom:10, resize:"none", lineHeight:1.5}}
-          />
-
-          <input
-            type="text"
-            value={addressHint}
-            onChange={e => setAddressHint(e.target.value)}
-            placeholder="Optional: address, area, or ZIP to improve Yelp/TripAdvisor matching"
-            style={{
-              width: "100%",
-              background: C.black2,
-              border: `1.5px solid ${C.border}`,
-              borderRadius: 12,
-              padding: "12px 16px",
-              color: C.white,
-              fontSize: 13,
-              fontFamily: "inherit",
-              marginBottom: 10
-            }}
-          />
-
-          <input
-            type="text"
-            value={yelpUrl}
-            onChange={e => setYelpUrl(e.target.value)}
-            placeholder="Optional: Yelp business URL for exact Yelp reviews"
-            style={{
-              width: "100%",
-              background: C.black2,
-              border: `1.5px solid ${C.border}`,
-              borderRadius: 12,
-              padding: "12px 16px",
-              color: C.white,
-              fontSize: 13,
-              fontFamily: "inherit",
-              marginBottom: 10
-            }}
-          />
-
-          {error && <div style={{color:C.red, fontSize:13, marginBottom:10}}>⚠️ {error}</div>}
-
-          <button
-            onClick={analyse}
-            disabled={isLoading}
-            style={{width:"100%", padding:"14px", border:"none", borderRadius:12, background:isLoading?"#1e2535":`linear-gradient(135deg,${C.blue},${C.green})`, color:isLoading?"#555":C.black, fontSize:14, fontWeight:800, cursor:isLoading?"not-allowed":"pointer", fontFamily:"'Syne',sans-serif"}}>
-            {isLoading ? "⏳ Analysing... please wait" : "🔍 Analyse Restaurant"}
-          </button>
-        </Card>
-
-        {isLoading && (
-          <Card className="fade" style={{textAlign:"center", padding:28}}>
-            <div className="pulse" style={{fontSize:52, marginBottom:14}}>{progress < 55 ? "📡" : "🤖"}</div>
-            <p className="syne" style={{fontSize:18, fontWeight:800, color:C.white, marginBottom:6}}>
-              {progress < 55 ? "Fetching recent reviews..." : "Claude AI is analysing..."}
-            </p>
-            <p style={{fontSize:13, color:C.muted, marginBottom:20}}>{progMsg}</p>
-            <div style={{background:C.black2, borderRadius:100, height:8, overflow:"hidden", maxWidth:360, margin:"0 auto 8px"}}>
-              <div className="prog" style={{height:"100%", borderRadius:100, background:`linear-gradient(90deg,${C.blue},${C.green})`, width:`${progress}%`}}/>
+        <div className="hero-grid">
+          <ShellCard style={{ padding: 22 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+              <Pill>Premium AI workflow</Pill>
+              <Pill color={C.purple} bg="rgba(179,136,255,0.12)">
+                Google + Yelp + TripAdvisor
+              </Pill>
             </div>
-            <p style={{fontSize:12, color:C.muted}}>{progress}%</p>
-          </Card>
-        )}
 
-        {stage === "done" && analysis && restaurant && (
-          <div className="fade">
-            <div style={{display:"flex", alignItems:"center", gap:12, background:C.black3, border:`1px solid ${C.border}`, borderRadius:14, padding:14, marginBottom:14}}>
-              <div style={{width:46, height:46, borderRadius:12, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0}}>🍽️</div>
-              <div style={{flex:1}}>
-                <p className="syne" style={{fontSize:16, fontWeight:800, color:C.white, margin:"0 0 2px"}}>{restaurant.name}</p>
-                <p style={{fontSize:11, color:C.muted, margin:0}}>{restaurant.address}</p>
+            <div style={{ fontSize: 38, lineHeight: 1.08, fontWeight: 800, maxWidth: 720 }}>
+              Turn restaurant reviews into charts, decisions, and actions.
+            </div>
+
+            <div style={{ marginTop: 14, color: C.muted, fontSize: 15, lineHeight: 1.8, maxWidth: 740 }}>
+              Paste a Google Maps restaurant link, optionally add Yelp for exact matching, and GuestPulse will collect reviews,
+              analyze customer sentiment, surface trending dishes, and generate owner-ready insights in one premium dashboard.
+            </div>
+
+            <div style={{ marginTop: 20, display: "grid", gap: 12 }}>
+              <textarea
+                className="input"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder="Paste Google Maps restaurant URL here..."
+                rows={4}
+                style={{ resize: "none", lineHeight: 1.55 }}
+              />
+
+              <div className="two-col">
+                <input
+                  className="input"
+                  type="text"
+                  value={addressHint}
+                  onChange={(e) => setAddressHint(e.target.value)}
+                  placeholder="Optional address, ZIP, or area for better matching"
+                />
+                <input
+                  className="input"
+                  type="text"
+                  value={yelpUrl}
+                  onChange={(e) => setYelpUrl(e.target.value)}
+                  placeholder="Optional Yelp business URL"
+                />
               </div>
-              <div style={{textAlign:"center", flexShrink:0}}>
-                <div className="syne" style={{fontSize:24, fontWeight:800, color:healthColor(hs)}}>{hs}%</div>
-                <div style={{fontSize:9, color:C.muted}}>Health</div>
+
+              {error ? <div style={{ color: C.red, fontSize: 13, fontWeight: 700 }}>⚠️ {error}</div> : null}
+
+              <div className="two-col">
+                <button className="cta" onClick={analyse} disabled={isLoading}>
+                  {isLoading ? "⏳ Analysing... please wait" : "🚀 Analyse Restaurant"}
+                </button>
+                <button
+                  className="cta"
+                  onClick={reset}
+                  style={{
+                    background: "rgba(255,255,255,0.06)",
+                    color: C.white,
+                    border: `1px solid ${C.borderStrong}`,
+                  }}
+                >
+                  Reset Workspace
+                </button>
               </div>
             </div>
 
-            <Card>
-              <Lbl>Review Sources</Lbl>
-              <div style={{display:"flex", gap:10, flexWrap:"wrap"}}>
-                <span style={{ padding:"6px 12px", borderRadius:999, background:C.blueDim, border:`1px solid ${C.blueBorder}`, color:C.blue2, fontSize:12, fontWeight:700 }}>
-                  Google: {sourceCounts.google}
-                </span>
-                <span style={{ padding:"6px 12px", borderRadius:999, background:C.greenDim, border:`1px solid ${C.greenBorder}`, color:C.green, fontSize:12, fontWeight:700 }}>
-                  Yelp: {sourceCounts.yelp}
-                </span>
-                <span style={{ padding:"6px 12px", borderRadius:999, background:C.redDim, border:`1px solid ${C.redBorder}`, color:C.red, fontSize:12, fontWeight:700 }}>
-                  TripAdvisor: {sourceCounts.tripadvisor}
-                </span>
-                <span style={{ padding:"6px 12px", borderRadius:999, background:"rgba(232,234,246,0.06)", border:`1px solid ${C.border}`, color:C.white, fontSize:12, fontWeight:700 }}>
-                  Total: {rawReviews.length}
-                </span>
+            {isLoading ? (
+              <div
+                className="fadeIn"
+                style={{
+                  marginTop: 18,
+                  padding: 16,
+                  borderRadius: 18,
+                  background: "rgba(255,255,255,0.04)",
+                  border: `1px solid ${C.border}`,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 10 }}>
+                  <div style={{ color: C.white, fontWeight: 700 }}>
+                    {progress < 55 ? "Fetching review data..." : "Claude AI is analysing..."}
+                  </div>
+                  <div style={{ color: C.cyan, fontSize: 13, fontWeight: 800 }}>{progress}%</div>
+                </div>
+                <div style={{ color: C.muted, fontSize: 13, marginBottom: 12 }}>{progMsg}</div>
+                <div style={{ height: 9, borderRadius: 999, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${progress}%`,
+                      borderRadius: 999,
+                      background: "linear-gradient(90deg, #4f8cff, #22d3ee 55%, #00e676)",
+                      transition: "width .45s ease",
+                    }}
+                  />
+                </div>
               </div>
-            </Card>
+            ) : null}
+          </ShellCard>
 
-            <div style={{display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:14}}>
-              <div style={{background:C.greenDim, border:`1px solid ${C.greenBorder}`, borderRadius:12, padding:12, textAlign:"center"}}>
-                <div className="syne" style={{fontSize:22, fontWeight:800, color:C.green}}>{analysis.sentiment?.positive||0}</div>
-                <div style={{fontSize:11, color:C.muted, marginTop:3}}>Positive</div>
+          <ShellCard style={{ padding: 22 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "start", marginBottom: 18 }}>
+              <div>
+                <div style={{ color: C.muted, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
+                  Workspace
+                </div>
+                <div style={{ color: C.white, fontSize: 22, fontWeight: 800, marginTop: 4 }}>
+                  {restaurant?.name || "Founder Dashboard"}
+                </div>
               </div>
-              <div style={{background:C.blueDim, border:`1px solid ${C.blueBorder}`, borderRadius:12, padding:12, textAlign:"center"}}>
-                <div className="syne" style={{fontSize:22, fontWeight:800, color:C.blue2}}>{analysis.sentiment?.neutral||0}</div>
-                <div style={{fontSize:11, color:C.muted, marginTop:3}}>Neutral</div>
-              </div>
-              <div style={{background:C.redDim, border:`1px solid ${C.redBorder}`, borderRadius:12, padding:12, textAlign:"center"}}>
-                <div className="syne" style={{fontSize:22, fontWeight:800, color:C.red}}>{analysis.sentiment?.negative||0}</div>
-                <div style={{fontSize:11, color:C.muted, marginTop:3}}>Negative</div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  padding: "10px 12px",
+                  borderRadius: 18,
+                  background: "rgba(255,255,255,0.045)",
+                  border: `1px solid ${C.border}`,
+                }}
+              >
+                <div
+                  style={{
+                    width: 42,
+                    height: 42,
+                    borderRadius: 999,
+                    background: "linear-gradient(135deg, #b388ff, #22d3ee)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#08111a",
+                    fontWeight: 800,
+                  }}
+                >
+                  D
+                </div>
+                <div>
+                  <div style={{ color: C.white, fontSize: 13, fontWeight: 700 }}>Dheeraj</div>
+                  <div style={{ color: C.muted, fontSize: 11 }}>Founder • Admin</div>
+                </div>
               </div>
             </div>
 
-            <div style={{display:"flex", gap:6, marginBottom:14, flexWrap:"wrap"}}>
+            <div className="stats-grid">
+              <StatCard label="Restaurant Health" value={analysis ? `${hs}%` : "—"} sub="AI-generated performance score" accent={healthColor(hs)} />
+              <StatCard label="Reviews Analysed" value={rawReviews.length || "—"} sub="Across all connected sources" accent={C.cyan} />
+              <StatCard label="Positive Signals" value={analysis?.sentiment?.positive ?? "—"} sub="Strong customer experiences" accent={C.green2} />
+              <StatCard label="Negative Signals" value={analysis?.sentiment?.negative ?? "—"} sub="Issues worth owner attention" accent={C.red} />
+            </div>
+
+            <div style={{ marginTop: 16 }} className="three-col">
+              <MiniInfo icon="🍽️" label="Must Try" value={analysis?.forCustomer?.mustTry || "Top dish pending"} color={C.green2} />
+              <MiniInfo icon="🕒" label="Best Time" value={analysis?.bestTimeToVisit || "Weekday lunch"} color={C.cyan} />
+              <MiniInfo icon="💰" label="Avg For Two" value={analysis?.priceRange?.avgMealForTwo || "—"} color={C.amber} />
+            </div>
+          </ShellCard>
+        </div>
+
+        {restaurant && analysis ? (
+          <div className="main-grid fadeIn">
+            <ShellCard style={{ padding: 14, alignSelf: "start", position: "sticky", top: 108 }}>
+              <div style={{ color: C.muted2, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>
+                Dashboard Views
+              </div>
+
               {[
-                {k:"charts",l:"📊 Charts"},
-                {k:"owner",l:"🍽️ Owner"},
-                {k:"customer",l:"👥 Customer"},
-                {k:"food",l:"🍔 Food"},
-                {k:"access",l:"♿ Access"},
-                {k:"hygiene",l:"🧹 Hygiene"},
-                {k:"reviews",l:"📝 Reviews"}
-              ].map(t=>(
-                <button key={t.k} className={`tbtn${activeTab===t.k?" on":""}`} onClick={()=>setActiveTab(t.k)}>{t.l}</button>
+                { k: "charts", l: "📊 Charts" },
+                { k: "owner", l: "🍽️ Owner" },
+                { k: "customer", l: "👥 Customer" },
+                { k: "food", l: "🍔 Food" },
+                { k: "access", l: "♿ Access" },
+                { k: "hygiene", l: "🧹 Hygiene" },
+                { k: "reviews", l: "📝 Reviews" },
+              ].map((item) => (
+                <button
+                  key={item.k}
+                  className={`tab-btn ${activeTab === item.k ? "active" : ""}`}
+                  onClick={() => setActiveTab(item.k)}
+                  style={{ marginBottom: 8 }}
+                >
+                  {item.l}
+                </button>
               ))}
-            </div>
 
-            {activeTab==="charts"&&(
-              <div className="fade">
-                <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))", gap:12}}>
-                  <Card>
-                    <Lbl>Reviews by Platform</Lbl>
-                    <div style={{width:"100%", height:260}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.sourceData}>
-                          <CartesianGrid stroke="rgba(232,234,246,0.08)" vertical={false} />
-                          <XAxis dataKey="name" stroke={C.muted} />
-                          <YAxis stroke={C.muted} />
-                          <Tooltip
-                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
-                            labelStyle={{ color:C.white }}
-                          />
-                          <Bar dataKey="reviews" fill={C.blue2} radius={[8,8,0,0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <Lbl>Sentiment Split</Lbl>
-                    <div style={{width:"100%", height:260}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={chartData.sentimentData}
-                            dataKey="value"
-                            nameKey="name"
-                            innerRadius={55}
-                            outerRadius={85}
-                            paddingAngle={4}
-                          >
-                            {chartData.sentimentData.map((entry, i) => (
-                              <Cell key={i} fill={entry.fill} />
-                            ))}
-                          </Pie>
-                          <Tooltip
-                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
-                          />
-                          <Legend />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <Lbl>Average Rating Trend</Lbl>
-                    <div style={{width:"100%", height:260}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={chartData.ratingTrend}>
-                          <CartesianGrid stroke="rgba(232,234,246,0.08)" vertical={false} />
-                          <XAxis dataKey="month" stroke={C.muted} />
-                          <YAxis domain={[0,5]} stroke={C.muted} />
-                          <Tooltip
-                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
-                          />
-                          <Line type="monotone" dataKey="rating" stroke={C.green} strokeWidth={3} dot={{ r: 4 }} />
-                        </LineChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <Lbl>Top Complaints</Lbl>
-                    <div style={{width:"100%", height:260}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.complaintData} layout="vertical" margin={{ left: 20 }}>
-                          <CartesianGrid stroke="rgba(232,234,246,0.08)" horizontal={false} />
-                          <XAxis type="number" stroke={C.muted} />
-                          <YAxis dataKey="issue" type="category" stroke={C.muted} width={120} />
-                          <Tooltip
-                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
-                          />
-                          <Bar dataKey="mentions" fill={C.red} radius={[0,8,8,0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <Lbl>Top Praises</Lbl>
-                    <div style={{width:"100%", height:260}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.praiseData} layout="vertical" margin={{ left: 20 }}>
-                          <CartesianGrid stroke="rgba(232,234,246,0.08)" horizontal={false} />
-                          <XAxis type="number" stroke={C.muted} />
-                          <YAxis dataKey="aspect" type="category" stroke={C.muted} width={120} />
-                          <Tooltip
-                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
-                          />
-                          <Bar dataKey="mentions" fill={C.green} radius={[0,8,8,0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card>
-                    <Lbl>Trending Recipes</Lbl>
-                    <div style={{width:"100%", height:260}}>
-                      <ResponsiveContainer width="100%" height="100%">
-                        <BarChart data={chartData.recipeTrend}>
-                          <CartesianGrid stroke="rgba(232,234,246,0.08)" vertical={false} />
-                          <XAxis dataKey="recipe" stroke={C.muted} />
-                          <YAxis stroke={C.muted} />
-                          <Tooltip
-                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
-                          />
-                          <Bar dataKey="mentions" fill={C.purple} radius={[8,8,0,0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-                </div>
-
-                <Card>
-                  <Lbl>What these charts show</Lbl>
-                  <p style={{fontSize:13, color:C.muted, lineHeight:1.7}}>
-                    These graphs are built from your existing <span style={{color:C.white, fontWeight:700}}>rawReviews</span>,
-                    <span style={{color:C.white, fontWeight:700}}> sourceCounts</span>, and
-                    <span style={{color:C.white, fontWeight:700}}> analysis</span> data.
-                    Nothing in your core backend idea is changed — this is only a visual layer on top of your existing result.
-                  </p>
-                </Card>
-              </div>
-            )}
-
-            {activeTab==="owner"&&(
-              <div className="fade">
-                <Card style={{borderLeft:`3px solid ${C.blue}`, borderRadius:"0 14px 14px 0"}}>
-                  <Lbl>AI Conclusion for Owner</Lbl>
-                  <p style={{fontSize:13, color:C.muted, lineHeight:1.7, marginBottom:12}}>{analysis.forOwner?.conclusion}</p>
-                  <div style={{background:C.redDim, border:`1px solid ${C.redBorder}`, borderRadius:10, padding:"10px 14px"}}>
-                    <p style={{fontSize:10, fontWeight:700, color:C.red, marginBottom:4, textTransform:"uppercase", letterSpacing:"0.5px"}}>Urgent Action</p>
-                    <p style={{fontSize:13, color:C.muted, margin:0}}>{analysis.forOwner?.urgentAction}</p>
-                  </div>
-                </Card>
-
-                <Card>
-                  <Lbl>Platform Breakdown</Lbl>
-                  <p style={{fontSize:13, color:C.muted, lineHeight:1.7}}>
-                    This analysis is based on <span style={{color:C.white, fontWeight:700}}>{rawReviews.length}</span> reviews:
-                    {" "}Google <span style={{color:C.blue2, fontWeight:700}}>{sourceCounts.google}</span>,
-                    {" "}Yelp <span style={{color:C.green, fontWeight:700}}>{sourceCounts.yelp}</span>,
-                    {" "}TripAdvisor <span style={{color:C.red, fontWeight:700}}>{sourceCounts.tripadvisor}</span>.
-                  </p>
-                </Card>
-
-                <Lbl>Top Complaints</Lbl>
-                <Card>
-                  {(analysis.topComplaints||[]).map((c,i)=><BarRow key={i} label={c.issue} count={c.count} total={analysis.totalAnalysed} color={c.severity==="high"?C.red:c.severity==="medium"?C.blue2:C.muted}/>)}
-                  {analysis.topComplaints?.length===0&&<p style={{fontSize:13,color:C.green}}>No major complaints ✅</p>}
-                </Card>
-
-                <Lbl>Top Praises</Lbl>
-                <Card>
-                  {(analysis.topPraises||[]).map((p,i)=><BarRow key={i} label={p.aspect} count={p.count} total={analysis.totalAnalysed} color={C.green}/>)}
-                  {analysis.topPraises?.length===0&&<p style={{fontSize:13,color:C.muted}}>None detected</p>}
-                </Card>
-
-                <Lbl>How to Improve</Lbl>
-                {(analysis.forOwner?.improvements||[]).map((imp,i)=><ImpRow key={i} n={i+1} text={imp}/>)}
-              </div>
-            )}
-
-            {activeTab==="customer"&&(
-              <div className="fade">
-                <div style={{display:"flex", alignItems:"center", gap:14, background:v.bg, border:`1px solid ${v.border}`, borderRadius:16, padding:16, marginBottom:14}}>
-                  <div style={{fontSize:36}}>{v.icon}</div>
-                  <div style={{flex:1}}>
-                    <div className="syne" style={{fontSize:20, fontWeight:800, color:v.color, marginBottom:4}}>{v.label}</div>
-                    <div style={{fontSize:12, color:C.muted, lineHeight:1.6}}>{analysis.forCustomer?.conclusion}</div>
-                  </div>
-                </div>
-
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:14}}>
-                  <InfoCard icon="🍽️" label="Must Try" value={analysis.forCustomer?.mustTry} color={C.green}/>
-                  <InfoCard icon="🚫" label="Avoid" value={analysis.forCustomer?.avoid} color={C.red}/>
-                  <InfoCard icon="🕐" label="Best Time" value={analysis.bestTimeToVisit} color={C.blue2}/>
-                  <InfoCard icon="💰" label="Avg for 2" value={analysis.priceRange?.avgMealForTwo||"—"} sub={analysis.priceRange?.valueLabel} color={C.green}/>
-                </div>
-
-                <Card>
-                  <Lbl>Backed by Real Reviews</Lbl>
-                  <p style={{fontSize:13, color:C.muted, lineHeight:1.7}}>
-                    Verdict based on {rawReviews.length} recent reviews across Google, Yelp, and TripAdvisor.
-                  </p>
-                </Card>
-              </div>
-            )}
-
-            {activeTab==="food"&&(
-              <div className="fade">
-                <Lbl>Best Dishes</Lbl>
-                <div style={{display:"flex", flexWrap:"wrap", gap:8, marginBottom:14}}>
-                  {(analysis.bestDishes||[]).map((d,i)=><span key={i} style={{background:C.greenDim, border:`1px solid ${C.greenBorder}`, color:C.green, fontSize:12, fontWeight:700, padding:"5px 14px", borderRadius:100}}>{"🥇🥈🥉"[i]||"✅"} {d}</span>)}
-                  {analysis.bestDishes?.length===0&&<p style={{fontSize:13,color:C.muted}}>Not mentioned</p>}
-                </div>
-
-                <Lbl>Dishes to Avoid</Lbl>
-                <div style={{display:"flex", flexWrap:"wrap", gap:8, marginBottom:14}}>
-                  {(analysis.dishesToAvoid||[]).map((d,i)=><span key={i} style={{background:C.redDim, border:`1px solid ${C.redBorder}`, color:C.red, fontSize:12, fontWeight:700, padding:"5px 14px", borderRadius:100}}>❌ {d}</span>)}
-                  {analysis.dishesToAvoid?.length===0&&<p style={{fontSize:13,color:C.green}}>No dishes flagged ✅</p>}
-                </div>
-
-                <Lbl>Price Guide</Lbl>
-                <Card>
-                  <div style={{display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${C.border}`}}>
-                    <span style={{fontSize:13, color:C.muted}}>Avg — 1 person</span>
-                    <span style={{fontSize:14, fontWeight:700, color:C.green}}>{analysis.priceRange?.avgMealForOne||"—"}</span>
-                  </div>
-                  <div style={{display:"flex", justifyContent:"space-between", padding:"8px 0", borderBottom:`1px solid ${C.border}`}}>
-                    <span style={{fontSize:13, color:C.muted}}>Avg — 2 people</span>
-                    <span style={{fontSize:14, fontWeight:700, color:C.green}}>{analysis.priceRange?.avgMealForTwo||"—"}</span>
-                  </div>
-                  <div style={{display:"flex", justifyContent:"space-between", padding:"8px 0"}}>
-                    <span style={{fontSize:13, color:C.muted}}>Value for money</span>
-                    <span style={{fontSize:14, fontWeight:700, color:C.blue2}}>{"⭐".repeat(Math.round(analysis.priceRange?.valueRating||3))} {analysis.priceRange?.valueLabel}</span>
-                  </div>
-                </Card>
-              </div>
-            )}
-
-            {activeTab==="access"&&(
-              <div className="fade">
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10}}>
-                  <InfoCard icon="🅿️" label="Parking" value={analysis.accessibility?.parking?.available===true?"✅ Available":analysis.accessibility?.parking?.available===false?"❌ None":"—"} color={C.green}/>
-                  <InfoCard icon="♿" label="Wheelchair" value={analysis.accessibility?.wheelchair?.accessible===true?"✅ Accessible":analysis.accessibility?.wheelchair?.accessible===false?"❌ Limited":"—"} color={C.blue2}/>
-                  <InfoCard icon="🪑" label="Kids Chairs" value={analysis.accessibility?.kidsChairs?.available===true?"✅ Available":analysis.accessibility?.kidsChairs?.available===false?"❌ No":"—"} color={C.green}/>
-                  <InfoCard icon="📶" label="WiFi" value={analysis.accessibility?.wifi?.available===true?"✅ Free WiFi":analysis.accessibility?.wifi?.available===false?"❌ No WiFi":"—"} color={C.blue2}/>
-                  <InfoCard icon="🔊" label="Noise Level" value={analysis.accessibility?.noiseLevel||"—"} color={C.blue2}/>
-                  <InfoCard icon="🚻" label="Restrooms" value={analysis.accessibility?.restrooms||"—"} color={C.green}/>
+              <div
+                style={{
+                  marginTop: 12,
+                  padding: 14,
+                  borderRadius: 16,
+                  background: "linear-gradient(135deg, rgba(79,140,255,0.14), rgba(34,211,238,0.10))",
+                  border: `1px solid ${C.borderStrong}`,
+                }}
+              >
+                <div style={{ color: C.white, fontSize: 13, fontWeight: 800, marginBottom: 6 }}>Profile Snapshot</div>
+                <div style={{ color: C.muted, fontSize: 12, lineHeight: 1.7 }}>
+                  Premium workspace view for founders, restaurant owners, and multi-location review intelligence.
                 </div>
               </div>
-            )}
+            </ShellCard>
 
-            {activeTab==="hygiene"&&(
-              <div className="fade">
-                <Card style={{textAlign:"center", marginBottom:14}}>
-                  <div className="syne" style={{fontSize:52, fontWeight:800, color:healthColor((analysis.hygiene?.score||0)*10)}}>
-                    {analysis.hygiene?.score||"—"}<span style={{fontSize:22, color:C.muted}}>/10</span>
+            <div>
+              <div className="three-col" style={{ marginBottom: 14 }}>
+                <SectionCard title={restaurant.name} sub={restaurant.address}>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <Pill color={C.blue} bg="rgba(79,140,255,0.12)">
+                      Google: {sourceCounts.google}
+                    </Pill>
+                    <Pill color={C.green2} bg="rgba(52,211,153,0.12)">
+                      Yelp: {sourceCounts.yelp}
+                    </Pill>
+                    <Pill color={C.red} bg="rgba(255,92,122,0.12)">
+                      TripAdvisor: {sourceCounts.tripadvisor}
+                    </Pill>
+                    <Pill color={C.white} bg="rgba(255,255,255,0.08)">
+                      Total: {rawReviews.length}
+                    </Pill>
                   </div>
-                  <div style={{fontSize:14, color:C.muted, marginBottom:14}}>{analysis.hygiene?.label||"—"}</div>
-                  <div style={{background:C.black2, borderRadius:100, height:8, overflow:"hidden", maxWidth:240, margin:"0 auto"}}>
-                    <div style={{height:"100%", borderRadius:100, width:`${(analysis.hygiene?.score||0)*10}%`, background:`linear-gradient(90deg,${C.blue},${C.green})`, transition:"width 1s ease"}}/>
-                  </div>
-                </Card>
+                </SectionCard>
 
-                <div style={{display:"grid", gridTemplateColumns:"1fr 1fr", gap:10, marginBottom:12}}>
-                  {[{l:"Kitchen",v:analysis.hygiene?.kitchen},{l:"Tables",v:analysis.hygiene?.tables},{l:"Restrooms",v:analysis.hygiene?.restrooms},{l:"Staff",v:analysis.hygiene?.staff}].map((h,i)=>{
-                    const g=["Clean","Professional","Excellent","Good"].includes(h.v);
-                    const m=["Mixed","Fair"].includes(h.v);
-                    return(
-                      <div key={i} style={{borderRadius:12, padding:"12px 14px", background:g?C.greenDim:m?C.blueDim:C.redDim, border:`1px solid ${g?C.greenBorder:m?C.blueBorder:C.redBorder}`}}>
-                        <div style={{fontSize:9, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.5px", marginBottom:4, color:C.muted}}>{h.l}</div>
-                        <div style={{fontSize:14, fontWeight:700, color:C.white}}>{h.v||"—"}</div>
+                <SectionCard title="Health Score" sub="Overall AI business signal">
+                  <div style={{ color: healthColor(hs), fontSize: 40, fontWeight: 900 }}>{hs}%</div>
+                  <div style={{ marginTop: 8, height: 9, borderRadius: 999, background: "rgba(255,255,255,0.07)", overflow: "hidden" }}>
+                    <div
+                      style={{
+                        width: `${hs}%`,
+                        height: "100%",
+                        borderRadius: 999,
+                        background: `linear-gradient(90deg, ${C.blue}, ${C.cyan}, ${C.green})`,
+                      }}
+                    />
+                  </div>
+                </SectionCard>
+
+                <SectionCard title="Customer Verdict" sub="Decision signal from review patterns">
+                  <div
+                    style={{
+                      display: "inline-flex",
+                      gap: 10,
+                      alignItems: "center",
+                      padding: "10px 14px",
+                      borderRadius: 16,
+                      background: verdict.bg,
+                      border: `1px solid ${verdict.border}`,
+                      color: verdict.color,
+                      fontWeight: 800,
+                      fontSize: 14,
+                    }}
+                  >
+                    <span>{verdict.icon}</span>
+                    <span>{verdict.label}</span>
+                  </div>
+                </SectionCard>
+              </div>
+
+              {activeTab === "charts" && (
+                <div className="fadeIn">
+                  <div className="analytics-grid">
+                    <SectionCard title="Reviews by Platform" sub="How much data came from each source">
+                      <div style={{ width: "100%", height: 270 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData.sourceData}>
+                            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                            <XAxis dataKey="name" stroke={C.muted2} />
+                            <YAxis stroke={C.muted2} />
+                            <Tooltip contentStyle={chartTooltipStyle} />
+                            <Bar dataKey="reviews" fill={C.blue} radius={[10, 10, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
                       </div>
-                    );
-                  })}
-                </div>
+                    </SectionCard>
 
-                {analysis.hygiene?.ownerAlert&&(
-                  <Card style={{background:C.redDim, border:`1px solid ${C.redBorder}`}}>
-                    <p style={{fontSize:10, fontWeight:700, color:C.red, textTransform:"uppercase", marginBottom:6}}>Owner Alert</p>
-                    <p style={{fontSize:13, color:C.muted}}>{analysis.hygiene.ownerAlert}</p>
-                  </Card>
-                )}
-              </div>
-            )}
+                    <SectionCard title="Sentiment Split" sub="Positive, neutral, and negative breakdown">
+                      <div style={{ width: "100%", height: 270 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie data={chartData.sentimentData} dataKey="value" nameKey="name" innerRadius={62} outerRadius={90} paddingAngle={4}>
+                              {chartData.sentimentData.map((entry, i) => (
+                                <Cell key={i} fill={entry.fill} />
+                              ))}
+                            </Pie>
+                            <Tooltip contentStyle={chartTooltipStyle} />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </SectionCard>
 
-            {activeTab==="reviews"&&(
-              <div className="fade">
-                <Card>
-                  <Lbl>Platform Counts</Lbl>
-                  <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
-                    <span style={{background:C.blueDim,border:`1px solid ${C.blueBorder}`,color:C.blue2,fontSize:12,fontWeight:700,padding:"6px 12px",borderRadius:100}}>
-                      Google {googleReviews.length}
-                    </span>
-                    <span style={{background:C.greenDim,border:`1px solid ${C.greenBorder}`,color:C.green,fontSize:12,fontWeight:700,padding:"6px 12px",borderRadius:100}}>
-                      Yelp {yelpReviews.length}
-                    </span>
-                    <span style={{background:C.redDim,border:`1px solid ${C.redBorder}`,color:C.red,fontSize:12,fontWeight:700,padding:"6px 12px",borderRadius:100}}>
-                      TripAdvisor {tripReviews.length}
-                    </span>
+                    <SectionCard title="Average Rating Trend" sub="Review rating movement over time">
+                      <div style={{ width: "100%", height: 270 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={chartData.ratingTrend}>
+                            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                            <XAxis dataKey="month" stroke={C.muted2} />
+                            <YAxis domain={[0, 5]} stroke={C.muted2} />
+                            <Tooltip contentStyle={chartTooltipStyle} />
+                            <Line type="monotone" dataKey="rating" stroke={C.green2} strokeWidth={3} dot={{ r: 4 }} />
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </SectionCard>
+
+                    <SectionCard title="Top Complaints" sub="Most repeated negative themes">
+                      <div style={{ width: "100%", height: 270 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData.complaintData} layout="vertical" margin={{ left: 10 }}>
+                            <CartesianGrid stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                            <XAxis type="number" stroke={C.muted2} />
+                            <YAxis dataKey="issue" type="category" stroke={C.muted2} width={120} />
+                            <Tooltip contentStyle={chartTooltipStyle} />
+                            <Bar dataKey="mentions" fill={C.red} radius={[0, 10, 10, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </SectionCard>
+
+                    <SectionCard title="Top Praises" sub="Most repeated positive themes">
+                      <div style={{ width: "100%", height: 270 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData.praiseData} layout="vertical" margin={{ left: 10 }}>
+                            <CartesianGrid stroke="rgba(255,255,255,0.06)" horizontal={false} />
+                            <XAxis type="number" stroke={C.muted2} />
+                            <YAxis dataKey="aspect" type="category" stroke={C.muted2} width={120} />
+                            <Tooltip contentStyle={chartTooltipStyle} />
+                            <Bar dataKey="mentions" fill={C.green2} radius={[0, 10, 10, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </SectionCard>
+
+                    <SectionCard title="Trending Recipes" sub="Dishes mentioned most often in reviews">
+                      <div style={{ width: "100%", height: 270 }}>
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={chartData.recipeTrend}>
+                            <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
+                            <XAxis dataKey="recipe" stroke={C.muted2} />
+                            <YAxis stroke={C.muted2} />
+                            <Tooltip contentStyle={chartTooltipStyle} />
+                            <Bar dataKey="mentions" fill={C.purple} radius={[10, 10, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </SectionCard>
                   </div>
-                </Card>
 
-                <Lbl>Google Reviews</Lbl>
-                {googleReviews.length === 0 && <Card><p style={{fontSize:13,color:C.muted}}>No Google reviews returned.</p></Card>}
-                {googleReviews.slice(0, 6).map((r, i) => (
-                  <ReviewCard key={`g-${i}`} review={r} platformColor={C.blue2} platformLabel="Google" />
-                ))}
+                  <SectionCard
+                    title="What these charts show"
+                    sub="Visual layer added on top of your real backend and analysis data"
+                    style={{ marginTop: 14 }}
+                  >
+                    <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.8 }}>
+                      These charts are built directly from your existing <span style={{ color: C.white, fontWeight: 700 }}>rawReviews</span>,
+                      <span style={{ color: C.white, fontWeight: 700 }}> sourceCounts</span>, and
+                      <span style={{ color: C.white, fontWeight: 700 }}> analysis</span>. Your core backend idea stays the same —
+                      this simply makes your AI output more premium, easier to read, and more useful for owners and customers.
+                    </div>
+                  </SectionCard>
+                </div>
+              )}
 
-                <Lbl>Yelp Reviews</Lbl>
-                {yelpReviews.length === 0 && <Card><p style={{fontSize:13,color:C.muted}}>No Yelp reviews returned.</p></Card>}
-                {yelpReviews.slice(0, 6).map((r, i) => (
-                  <ReviewCard key={`y-${i}`} review={r} platformColor={C.green} platformLabel="Yelp" />
-                ))}
+              {activeTab === "owner" && (
+                <div className="fadeIn">
+                  <div className="two-col">
+                    <SectionCard title="AI Conclusion for Owner" sub="Operational summary based on real reviews">
+                      <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.8 }}>{analysis.forOwner?.conclusion}</div>
+                      <div
+                        style={{
+                          marginTop: 14,
+                          padding: 14,
+                          borderRadius: 18,
+                          background: "rgba(255,92,122,0.08)",
+                          border: `1px solid rgba(255,92,122,0.22)`,
+                        }}
+                      >
+                        <div style={{ color: C.red, fontSize: 11, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>
+                          Urgent Action
+                        </div>
+                        <div style={{ color: C.white, fontSize: 14, fontWeight: 700, marginTop: 8 }}>
+                          {analysis.forOwner?.urgentAction}
+                        </div>
+                      </div>
+                    </SectionCard>
 
-                <Lbl>TripAdvisor Reviews</Lbl>
-                {tripReviews.length === 0 && <Card><p style={{fontSize:13,color:C.muted}}>No TripAdvisor reviews returned.</p></Card>}
-                {tripReviews.slice(0, 6).map((r, i) => (
-                  <ReviewCard key={`t-${i}`} review={r} platformColor={C.red} platformLabel="TripAdvisor" />
-                ))}
+                    <SectionCard title="Platform Breakdown" sub="Review coverage used in analysis">
+                      <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.8, marginBottom: 14 }}>
+                        This analysis is based on <span style={{ color: C.white, fontWeight: 800 }}>{rawReviews.length}</span> reviews:
+                      </div>
+                      <ProgressRow label="Google" value={sourceCounts.google} total={rawReviews.length} color={C.blue} />
+                      <ProgressRow label="Yelp" value={sourceCounts.yelp} total={rawReviews.length} color={C.green2} />
+                      <ProgressRow label="TripAdvisor" value={sourceCounts.tripadvisor} total={rawReviews.length} color={C.red} />
+                    </SectionCard>
+                  </div>
+
+                  <div className="two-col" style={{ marginTop: 14 }}>
+                    <SectionCard title="Top Complaints" sub="What needs fixing most">
+                      {(analysis.topComplaints || []).length === 0 ? (
+                        <div style={{ color: C.green2, fontSize: 13, fontWeight: 700 }}>No major complaints detected ✅</div>
+                      ) : (
+                        (analysis.topComplaints || []).map((c, i) => (
+                          <ProgressRow
+                            key={i}
+                            label={c.issue}
+                            value={c.count}
+                            total={analysis.totalAnalysed}
+                            color={c.severity === "high" ? C.red : c.severity === "medium" ? C.cyan : C.muted}
+                          />
+                        ))
+                      )}
+                    </SectionCard>
+
+                    <SectionCard title="Top Praises" sub="What customers consistently like">
+                      {(analysis.topPraises || []).length === 0 ? (
+                        <div style={{ color: C.muted, fontSize: 13 }}>No strong praise clusters detected.</div>
+                      ) : (
+                        (analysis.topPraises || []).map((p, i) => (
+                          <ProgressRow key={i} label={p.aspect} value={p.count} total={analysis.totalAnalysed} color={C.green2} />
+                        ))
+                      )}
+                    </SectionCard>
+                  </div>
+
+                  <SectionCard title="Recommended Owner Improvements" sub="Action list generated from review signals" style={{ marginTop: 14 }}>
+                    {(analysis.forOwner?.improvements || []).map((imp, i) => (
+                      <ActionRow key={i} index={i + 1} text={imp} />
+                    ))}
+                  </SectionCard>
+                </div>
+              )}
+
+              {activeTab === "customer" && (
+                <div className="fadeIn">
+                  <SectionCard title="Customer Verdict" sub="Should a customer go here?">
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 14,
+                        padding: 16,
+                        borderRadius: 20,
+                        background: verdict.bg,
+                        border: `1px solid ${verdict.border}`,
+                        marginBottom: 16,
+                      }}
+                    >
+                      <div style={{ fontSize: 34 }}>{verdict.icon}</div>
+                      <div>
+                        <div style={{ color: verdict.color, fontSize: 21, fontWeight: 800 }}>{verdict.label}</div>
+                        <div style={{ color: C.muted, fontSize: 13, marginTop: 4, lineHeight: 1.7 }}>
+                          {analysis.forCustomer?.conclusion}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="two-col">
+                      <MiniInfo icon="🍽️" label="Must Try" value={analysis.forCustomer?.mustTry} color={C.green2} />
+                      <MiniInfo icon="🚫" label="Avoid" value={analysis.forCustomer?.avoid} color={C.red} />
+                      <MiniInfo icon="🕐" label="Best Time" value={analysis.bestTimeToVisit} color={C.cyan} />
+                      <MiniInfo icon="💰" label="Value" value={analysis.priceRange?.valueLabel || "Fair"} color={C.amber} />
+                    </div>
+                  </SectionCard>
+                </div>
+              )}
+
+              {activeTab === "food" && (
+                <div className="fadeIn">
+                  <div className="two-col">
+                    <SectionCard title="Best Dishes" sub="Most positively mentioned food items">
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {(analysis.bestDishes || []).length === 0 ? (
+                          <div style={{ color: C.muted, fontSize: 13 }}>No dishes highlighted yet.</div>
+                        ) : (
+                          (analysis.bestDishes || []).map((dish, i) => (
+                            <span
+                              key={i}
+                              style={{
+                                padding: "8px 14px",
+                                borderRadius: 999,
+                                background: "rgba(52,211,153,0.12)",
+                                border: "1px solid rgba(52,211,153,0.28)",
+                                color: C.green2,
+                                fontSize: 12,
+                                fontWeight: 800,
+                              }}
+                            >
+                              {i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : "✅"} {dish}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </SectionCard>
+
+                    <SectionCard title="Dishes to Avoid" sub="Items flagged in customer feedback">
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                        {(analysis.dishesToAvoid || []).length === 0 ? (
+                          <div style={{ color: C.green2, fontSize: 13, fontWeight: 700 }}>No dishes flagged ✅</div>
+                        ) : (
+                          (analysis.dishesToAvoid || []).map((dish, i) => (
+                            <span
+                              key={i}
+                              style={{
+                                padding: "8px 14px",
+                                borderRadius: 999,
+                                background: "rgba(255,92,122,0.12)",
+                                border: "1px solid rgba(255,92,122,0.26)",
+                                color: C.red,
+                                fontSize: 12,
+                                fontWeight: 800,
+                              }}
+                            >
+                              ❌ {dish}
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </SectionCard>
+                  </div>
+
+                  <SectionCard title="Price Guide" sub="Estimated value insights from review language" style={{ marginTop: 14 }}>
+                    <div className="three-col">
+                      <MiniInfo icon="👤" label="Avg For One" value={analysis.priceRange?.avgMealForOne} color={C.green2} />
+                      <MiniInfo icon="👥" label="Avg For Two" value={analysis.priceRange?.avgMealForTwo} color={C.amber} />
+                      <MiniInfo
+                        icon="⭐"
+                        label="Value Rating"
+                        value={`${"⭐".repeat(Math.max(1, Math.round(analysis.priceRange?.valueRating || 3)))} ${analysis.priceRange?.valueLabel || ""}`}
+                        color={C.cyan}
+                      />
+                    </div>
+                  </SectionCard>
+                </div>
+              )}
+
+              {activeTab === "access" && (
+                <div className="fadeIn">
+                  <SectionCard title="Accessibility & Convenience" sub="Parking, wheelchair access, wifi, and environment">
+                    <div className="three-col">
+                      <MiniInfo
+                        icon="🅿️"
+                        label="Parking"
+                        value={
+                          analysis.accessibility?.parking?.available === true
+                            ? "Available"
+                            : analysis.accessibility?.parking?.available === false
+                            ? "Not available"
+                            : "Unknown"
+                        }
+                        color={C.green2}
+                      />
+                      <MiniInfo
+                        icon="♿"
+                        label="Wheelchair"
+                        value={
+                          analysis.accessibility?.wheelchair?.accessible === true
+                            ? "Accessible"
+                            : analysis.accessibility?.wheelchair?.accessible === false
+                            ? "Limited"
+                            : "Unknown"
+                        }
+                        color={C.cyan}
+                      />
+                      <MiniInfo
+                        icon="📶"
+                        label="WiFi"
+                        value={
+                          analysis.accessibility?.wifi?.available === true
+                            ? "Available"
+                            : analysis.accessibility?.wifi?.available === false
+                            ? "Not available"
+                            : "Unknown"
+                        }
+                        color={C.blue}
+                      />
+                      <MiniInfo
+                        icon="🪑"
+                        label="Kids Chairs"
+                        value={
+                          analysis.accessibility?.kidsChairs?.available === true
+                            ? "Available"
+                            : analysis.accessibility?.kidsChairs?.available === false
+                            ? "No"
+                            : "Unknown"
+                        }
+                        color={C.green2}
+                      />
+                      <MiniInfo icon="🔊" label="Noise Level" value={analysis.accessibility?.noiseLevel || "Unknown"} color={C.purple} />
+                      <MiniInfo icon="🚻" label="Restrooms" value={analysis.accessibility?.restrooms || "Unknown"} color={C.amber} />
+                    </div>
+                  </SectionCard>
+                </div>
+              )}
+
+              {activeTab === "hygiene" && (
+                <div className="fadeIn">
+                  <div className="two-col">
+                    <SectionCard title="Hygiene Score" sub="Cleanliness signal from reviews">
+                      <div style={{ textAlign: "center" }}>
+                        <div style={{ fontSize: 58, fontWeight: 900, color: healthColor((analysis.hygiene?.score || 0) * 10) }}>
+                          {analysis.hygiene?.score || "—"}
+                          <span style={{ fontSize: 24, color: C.muted }}>/10</span>
+                        </div>
+                        <div style={{ color: C.muted, fontSize: 14, marginTop: 4 }}>{analysis.hygiene?.label || "Unknown"}</div>
+                        <div
+                          style={{
+                            height: 10,
+                            borderRadius: 999,
+                            background: "rgba(255,255,255,0.07)",
+                            overflow: "hidden",
+                            marginTop: 16,
+                          }}
+                        >
+                          <div
+                            style={{
+                              height: "100%",
+                              width: `${(analysis.hygiene?.score || 0) * 10}%`,
+                              borderRadius: 999,
+                              background: `linear-gradient(90deg, ${C.blue}, ${C.cyan}, ${C.green2})`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </SectionCard>
+
+                    <SectionCard title="Hygiene Details" sub="Where customers mention cleanliness most">
+                      <div className="two-col">
+                        <MiniInfo icon="🍳" label="Kitchen" value={analysis.hygiene?.kitchen} color={C.green2} />
+                        <MiniInfo icon="🪑" label="Tables" value={analysis.hygiene?.tables} color={C.cyan} />
+                        <MiniInfo icon="🚻" label="Restrooms" value={analysis.hygiene?.restrooms} color={C.amber} />
+                        <MiniInfo icon="👨‍🍳" label="Staff" value={analysis.hygiene?.staff} color={C.blue} />
+                      </div>
+                    </SectionCard>
+                  </div>
+
+                  {analysis.hygiene?.ownerAlert ? (
+                    <SectionCard title="Owner Alert" sub="Important hygiene-related warning" style={{ marginTop: 14 }}>
+                      <div
+                        style={{
+                          padding: 16,
+                          borderRadius: 18,
+                          background: "rgba(255,92,122,0.08)",
+                          border: "1px solid rgba(255,92,122,0.24)",
+                          color: C.muted,
+                          fontSize: 13,
+                          lineHeight: 1.8,
+                        }}
+                      >
+                        {analysis.hygiene.ownerAlert}
+                      </div>
+                    </SectionCard>
+                  ) : null}
+                </div>
+              )}
+
+              {activeTab === "reviews" && (
+                <div className="fadeIn">
+                  <div className="three-col" style={{ marginBottom: 14 }}>
+                    <SectionCard title="Google Reviews" sub={`${googleReviews.length} collected`}>
+                      {googleReviews.length === 0 ? (
+                        <div style={{ color: C.muted, fontSize: 13 }}>No Google reviews returned.</div>
+                      ) : (
+                        <div style={{ display: "grid", gap: 10 }}>
+                          {googleReviews.slice(0, 4).map((r, i) => (
+                            <ReviewCard key={`g-${i}`} review={r} platformColor={C.blue} platformLabel="Google" />
+                          ))}
+                        </div>
+                      )}
+                    </SectionCard>
+
+                    <SectionCard title="Yelp Reviews" sub={`${yelpReviews.length} collected`}>
+                      {yelpReviews.length === 0 ? (
+                        <div style={{ color: C.muted, fontSize: 13 }}>No Yelp reviews returned.</div>
+                      ) : (
+                        <div style={{ display: "grid", gap: 10 }}>
+                          {yelpReviews.slice(0, 4).map((r, i) => (
+                            <ReviewCard key={`y-${i}`} review={r} platformColor={C.green2} platformLabel="Yelp" />
+                          ))}
+                        </div>
+                      )}
+                    </SectionCard>
+
+                    <SectionCard title="TripAdvisor Reviews" sub={`${tripReviews.length} collected`}>
+                      {tripReviews.length === 0 ? (
+                        <div style={{ color: C.muted, fontSize: 13 }}>No TripAdvisor reviews returned.</div>
+                      ) : (
+                        <div style={{ display: "grid", gap: 10 }}>
+                          {tripReviews.slice(0, 4).map((r, i) => (
+                            <ReviewCard key={`t-${i}`} review={r} platformColor={C.red} platformLabel="TripAdvisor" />
+                          ))}
+                        </div>
+                      )}
+                    </SectionCard>
+                  </div>
+                </div>
+              )}
+
+              <button
+                onClick={reset}
+                style={{
+                  width: "100%",
+                  marginTop: 14,
+                  padding: "14px 16px",
+                  borderRadius: 18,
+                  border: `1px solid ${C.borderStrong}`,
+                  background: "rgba(255,255,255,0.04)",
+                  color: C.white,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  cursor: "pointer",
+                }}
+              >
+                🔄 Analyse Another Restaurant
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ marginTop: 18 }}>
+            <ShellCard style={{ padding: 24 }}>
+              <div style={{ fontSize: 22, fontWeight: 800, color: C.white, marginBottom: 8 }}>Your premium AI dashboard is ready</div>
+              <div style={{ color: C.muted, fontSize: 14, lineHeight: 1.8, maxWidth: 860 }}>
+                Paste a restaurant URL above to load the redesigned dashboard with review analytics, trend charts, owner actions,
+                customer verdicts, food insights, hygiene signals, and premium data cards — all powered by your existing backend.
               </div>
-            )}
-
-            <button onClick={reset} style={{width:"100%", marginTop:10, padding:"12px", border:`1px solid ${C.border}`, background:C.black3, color:C.muted, borderRadius:12, fontSize:13, fontWeight:700, cursor:"pointer", fontFamily:"inherit"}}>
-              🔄 Analyse Another Restaurant
-            </button>
+            </ShellCard>
           </div>
         )}
       </div>

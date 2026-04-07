@@ -1,10 +1,26 @@
 import { useState } from "react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  PieChart,
+  Pie,
+  Cell,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+} from "recharts";
 
 const C = {
   black:"#07090f", black2:"#0d1117", black3:"#161b27",
   green:"#00e676", green2:"#00c853", greenDim:"rgba(0,230,118,0.1)", greenBorder:"rgba(0,230,118,0.22)",
   blue:"#2979ff", blue2:"#448aff", blueDim:"rgba(41,121,255,0.1)", blueBorder:"rgba(41,121,255,0.22)",
   red:"#ff5252", redDim:"rgba(255,82,82,0.08)", redBorder:"rgba(255,82,82,0.2)",
+  purple:"#b388ff", purpleDim:"rgba(179,136,255,0.12)", purpleBorder:"rgba(179,136,255,0.22)",
   white:"#e8eaf6", muted:"rgba(232,234,246,0.45)", border:"rgba(232,234,246,0.07)",
 };
 
@@ -32,7 +48,7 @@ function fixAnalysis(raw, count) {
 
 const Card  = ({children, style={}}) => <div style={{background:C.black3, border:`1px solid ${C.border}`, borderRadius:16, padding:16, marginBottom:12, ...style}}>{children}</div>;
 const Lbl   = ({children}) => <p style={{fontSize:10, fontWeight:700, color:"rgba(232,234,246,0.3)", textTransform:"uppercase", letterSpacing:"1px", marginBottom:10}}>{children}</p>;
-const Bar   = ({label, count, total, color}) => (
+const BarRow   = ({label, count, total, color}) => (
   <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:10}}>
     <span style={{fontSize:12, color:C.muted, width:120, flexShrink:0}}>{label}</span>
     <div style={{flex:1, background:"rgba(232,234,246,0.06)", borderRadius:100, height:5, overflow:"hidden"}}>
@@ -71,6 +87,92 @@ const ReviewCard = ({review, platformColor, platformLabel}) => (
     <p style={{fontSize:13, color:C.muted, lineHeight:1.6, margin:0}}>{review.text}</p>
   </Card>
 );
+
+function getMonthLabel(dateInput) {
+  if (!dateInput) return "Unknown";
+  const d = new Date(dateInput);
+  if (!isNaN(d.getTime())) {
+    return d.toLocaleString("en-US", { month: "short" });
+  }
+
+  const raw = String(dateInput).toLowerCase();
+  const months = [
+    ["jan", "Jan"], ["feb", "Feb"], ["mar", "Mar"], ["apr", "Apr"],
+    ["may", "May"], ["jun", "Jun"], ["jul", "Jul"], ["aug", "Aug"],
+    ["sep", "Sep"], ["oct", "Oct"], ["nov", "Nov"], ["dec", "Dec"]
+  ];
+  for (const [find, out] of months) {
+    if (raw.includes(find)) return out;
+  }
+  return "Unknown";
+}
+
+function buildChartData(rawReviews, analysis, sourceCounts) {
+  const sourceData = [
+    { name: "Google", reviews: sourceCounts.google || 0 },
+    { name: "Yelp", reviews: sourceCounts.yelp || 0 },
+    { name: "TripAdvisor", reviews: sourceCounts.tripadvisor || 0 }
+  ];
+
+  const sentimentData = [
+    { name: "Positive", value: analysis?.sentiment?.positive || 0, fill: C.green },
+    { name: "Neutral", value: analysis?.sentiment?.neutral || 0, fill: C.blue2 },
+    { name: "Negative", value: analysis?.sentiment?.negative || 0, fill: C.red },
+  ];
+
+  const ratingBuckets = {};
+  rawReviews.forEach(r => {
+    const m = getMonthLabel(r.time);
+    if (!ratingBuckets[m]) ratingBuckets[m] = { total: 0, count: 0 };
+    ratingBuckets[m].total += Number(r.rating) || 0;
+    ratingBuckets[m].count += 1;
+  });
+
+  const monthOrder = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec","Unknown"];
+  const ratingTrend = monthOrder
+    .filter(m => ratingBuckets[m])
+    .map(m => ({
+      month: m,
+      rating: Number((ratingBuckets[m].total / Math.max(ratingBuckets[m].count, 1)).toFixed(1))
+    }));
+
+  const complaintData = (analysis?.topComplaints || []).slice(0, 6).map(c => ({
+    issue: c.issue,
+    mentions: c.count
+  }));
+
+  const praiseData = (analysis?.topPraises || []).slice(0, 6).map(p => ({
+    aspect: p.aspect,
+    mentions: p.count
+  }));
+
+  const recipeMap = {};
+  (analysis?.bestDishes || []).forEach((dish, i) => {
+    recipeMap[dish] = recipeMap[dish] || 0;
+    recipeMap[dish] += Math.max(10 - i * 2, 4);
+  });
+
+  rawReviews.forEach(r => {
+    const text = (r.text || "").toLowerCase();
+    Object.keys(recipeMap).forEach(dish => {
+      if (text.includes(dish.toLowerCase())) recipeMap[dish] += 1;
+    });
+  });
+
+  const recipeTrend = Object.entries(recipeMap)
+    .map(([recipe, mentions]) => ({ recipe, mentions }))
+    .sort((a, b) => b.mentions - a.mentions)
+    .slice(0, 6);
+
+  return {
+    sourceData,
+    sentimentData,
+    ratingTrend,
+    complaintData,
+    praiseData,
+    recipeTrend
+  };
+}
 
 export default function App() {
   const [url, setUrl] = useState("");
@@ -211,6 +313,7 @@ export default function App() {
       await new Promise(r => setTimeout(r, 500));
       setAnalysis(fixed);
       setStage("done");
+      setActiveTab("charts");
       showToast("✅ Analysis complete!");
     } catch(e) {
       setError(e.message || "Something went wrong.");
@@ -231,6 +334,7 @@ export default function App() {
     setProgress(0);
     setError("");
     setRunData(null);
+    setActiveTab("owner");
   };
 
   const hs = analysis?.healthScore || 0;
@@ -239,6 +343,8 @@ export default function App() {
   const googleReviews = rawReviews.filter(r => r.source === "google");
   const yelpReviews = rawReviews.filter(r => r.source === "yelp");
   const tripReviews = rawReviews.filter(r => r.source === "tripadvisor");
+
+  const chartData = buildChartData(rawReviews, analysis, sourceCounts);
 
   const VERDICT = {
     recommended: { color:C.green,  bg:C.greenDim, border:C.greenBorder, icon:"✅", label:"Recommended" },
@@ -281,7 +387,7 @@ export default function App() {
         )}
       </nav>
 
-      <div style={{maxWidth:760, margin:"0 auto", padding:"32px 18px 80px"}}>
+      <div style={{maxWidth:1100, margin:"0 auto", padding:"32px 18px 80px"}}>
         <Card style={{marginBottom:20}}>
           <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:14}}>
             <div style={{width:36, height:36, borderRadius:10, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>💓</div>
@@ -408,6 +514,7 @@ export default function App() {
 
             <div style={{display:"flex", gap:6, marginBottom:14, flexWrap:"wrap"}}>
               {[
+                {k:"charts",l:"📊 Charts"},
                 {k:"owner",l:"🍽️ Owner"},
                 {k:"customer",l:"👥 Customer"},
                 {k:"food",l:"🍔 Food"},
@@ -418,6 +525,134 @@ export default function App() {
                 <button key={t.k} className={`tbtn${activeTab===t.k?" on":""}`} onClick={()=>setActiveTab(t.k)}>{t.l}</button>
               ))}
             </div>
+
+            {activeTab==="charts"&&(
+              <div className="fade">
+                <div style={{display:"grid", gridTemplateColumns:"repeat(auto-fit,minmax(320px,1fr))", gap:12}}>
+                  <Card>
+                    <Lbl>Reviews by Platform</Lbl>
+                    <div style={{width:"100%", height:260}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.sourceData}>
+                          <CartesianGrid stroke="rgba(232,234,246,0.08)" vertical={false} />
+                          <XAxis dataKey="name" stroke={C.muted} />
+                          <YAxis stroke={C.muted} />
+                          <Tooltip
+                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
+                            labelStyle={{ color:C.white }}
+                          />
+                          <Bar dataKey="reviews" fill={C.blue2} radius={[8,8,0,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <Lbl>Sentiment Split</Lbl>
+                    <div style={{width:"100%", height:260}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={chartData.sentimentData}
+                            dataKey="value"
+                            nameKey="name"
+                            innerRadius={55}
+                            outerRadius={85}
+                            paddingAngle={4}
+                          >
+                            {chartData.sentimentData.map((entry, i) => (
+                              <Cell key={i} fill={entry.fill} />
+                            ))}
+                          </Pie>
+                          <Tooltip
+                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
+                          />
+                          <Legend />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <Lbl>Average Rating Trend</Lbl>
+                    <div style={{width:"100%", height:260}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={chartData.ratingTrend}>
+                          <CartesianGrid stroke="rgba(232,234,246,0.08)" vertical={false} />
+                          <XAxis dataKey="month" stroke={C.muted} />
+                          <YAxis domain={[0,5]} stroke={C.muted} />
+                          <Tooltip
+                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
+                          />
+                          <Line type="monotone" dataKey="rating" stroke={C.green} strokeWidth={3} dot={{ r: 4 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <Lbl>Top Complaints</Lbl>
+                    <div style={{width:"100%", height:260}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.complaintData} layout="vertical" margin={{ left: 20 }}>
+                          <CartesianGrid stroke="rgba(232,234,246,0.08)" horizontal={false} />
+                          <XAxis type="number" stroke={C.muted} />
+                          <YAxis dataKey="issue" type="category" stroke={C.muted} width={120} />
+                          <Tooltip
+                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
+                          />
+                          <Bar dataKey="mentions" fill={C.red} radius={[0,8,8,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <Lbl>Top Praises</Lbl>
+                    <div style={{width:"100%", height:260}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.praiseData} layout="vertical" margin={{ left: 20 }}>
+                          <CartesianGrid stroke="rgba(232,234,246,0.08)" horizontal={false} />
+                          <XAxis type="number" stroke={C.muted} />
+                          <YAxis dataKey="aspect" type="category" stroke={C.muted} width={120} />
+                          <Tooltip
+                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
+                          />
+                          <Bar dataKey="mentions" fill={C.green} radius={[0,8,8,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+
+                  <Card>
+                    <Lbl>Trending Recipes</Lbl>
+                    <div style={{width:"100%", height:260}}>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={chartData.recipeTrend}>
+                          <CartesianGrid stroke="rgba(232,234,246,0.08)" vertical={false} />
+                          <XAxis dataKey="recipe" stroke={C.muted} />
+                          <YAxis stroke={C.muted} />
+                          <Tooltip
+                            contentStyle={{ background:C.black2, border:`1px solid ${C.border}`, borderRadius:10, color:C.white }}
+                          />
+                          <Bar dataKey="mentions" fill={C.purple} radius={[8,8,0,0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </Card>
+                </div>
+
+                <Card>
+                  <Lbl>What these charts show</Lbl>
+                  <p style={{fontSize:13, color:C.muted, lineHeight:1.7}}>
+                    These graphs are built from your existing <span style={{color:C.white, fontWeight:700}}>rawReviews</span>,
+                    <span style={{color:C.white, fontWeight:700}}> sourceCounts</span>, and
+                    <span style={{color:C.white, fontWeight:700}}> analysis</span> data.
+                    Nothing in your core backend idea is changed — this is only a visual layer on top of your existing result.
+                  </p>
+                </Card>
+              </div>
+            )}
 
             {activeTab==="owner"&&(
               <div className="fade">
@@ -442,13 +677,13 @@ export default function App() {
 
                 <Lbl>Top Complaints</Lbl>
                 <Card>
-                  {(analysis.topComplaints||[]).map((c,i)=><Bar key={i} label={c.issue} count={c.count} total={analysis.totalAnalysed} color={c.severity==="high"?C.red:c.severity==="medium"?C.blue2:C.muted}/>)}
+                  {(analysis.topComplaints||[]).map((c,i)=><BarRow key={i} label={c.issue} count={c.count} total={analysis.totalAnalysed} color={c.severity==="high"?C.red:c.severity==="medium"?C.blue2:C.muted}/>)}
                   {analysis.topComplaints?.length===0&&<p style={{fontSize:13,color:C.green}}>No major complaints ✅</p>}
                 </Card>
 
                 <Lbl>Top Praises</Lbl>
                 <Card>
-                  {(analysis.topPraises||[]).map((p,i)=><Bar key={i} label={p.aspect} count={p.count} total={analysis.totalAnalysed} color={C.green}/>)}
+                  {(analysis.topPraises||[]).map((p,i)=><BarRow key={i} label={p.aspect} count={p.count} total={analysis.totalAnalysed} color={C.green}/>)}
                   {analysis.topPraises?.length===0&&<p style={{fontSize:13,color:C.muted}}>None detected</p>}
                 </Card>
 

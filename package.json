@@ -1,6 +1,7 @@
 {
   "name": "guestpulse-ai",
   "version": "1.0.0",
+  "private": true,
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -8,7 +9,8 @@
   },
   "dependencies": {
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "recharts": "^2.12.7"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.0",

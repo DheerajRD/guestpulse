@@ -94,8 +94,8 @@ export default function App() {
   };
 
   const analyse = async () => {
-    if (!url.trim() && !yelpUrl.trim()) {
-      setError("Please paste at least a Google Maps URL or a Yelp URL.");
+    if (!url.trim()) {
+      setError("Please paste a Google Maps URL.");
       return;
     }
 
@@ -107,12 +107,12 @@ export default function App() {
     setRunData(null);
     setStage("fetching");
     setProgress(10);
-    setProgMsg(url.trim() ? "Connecting to Google Maps..." : "Connecting to Yelp...");
+    setProgMsg("Connecting to Google Maps...");
 
     try {
       await new Promise(r => setTimeout(r, 300));
       setProgress(20);
-      setProgMsg(url.trim() ? "Finding restaurant..." : "Fetching Yelp business...");
+      setProgMsg("Finding restaurant...");
 
       const r1 = await fetch("/api/reviews", {
         method:"POST",
@@ -170,16 +170,10 @@ export default function App() {
 
         if (!r2.ok) throw new Error(d2.error || "Failed");
 
-        if (d2.status === "done") {
-          if (d2.reviews && d2.reviews.length > 0) {
-            reviews = d2.reviews;
-            counts = d2.sources || { google: 0, yelp: 0, tripadvisor: 0 };
-            break;
-          }
-
-          if (d2.warning) {
-            throw new Error(d2.warning);
-          }
+        if (d2.status === "done" && d2.reviews && d2.reviews.length > 0) {
+          reviews = d2.reviews;
+          counts = d2.sources || { google: 0, yelp: 0, tripadvisor: 0 };
+          break;
         }
 
         if (d2.status === "running") continue;
@@ -293,7 +287,7 @@ export default function App() {
             <div style={{width:36, height:36, borderRadius:10, background:`linear-gradient(135deg,${C.blue},${C.green})`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:18}}>💓</div>
             <div>
               <p className="syne" style={{fontSize:15, fontWeight:800, color:C.white, margin:0}}>GuestPulse AI</p>
-              <p style={{fontSize:11, color:C.muted, margin:0}}>Paste a Google Maps link, Yelp URL, or both</p>
+              <p style={{fontSize:11, color:C.muted, margin:0}}>Paste any Google Maps restaurant link</p>
             </div>
           </div>
 

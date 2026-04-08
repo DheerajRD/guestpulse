@@ -14,6 +14,7 @@ import {
   Tooltip,
   Legend,
 } from "recharts";
+import { supabase } from "./lib/supabase";
 
 const C = {
   bg: "#060816",
@@ -150,19 +151,8 @@ function buildChartData(rawReviews, analysis, sourceCounts) {
   });
 
   const monthOrder = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-    "Unknown",
+    "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", "Unknown",
   ];
 
   const ratingTrend = monthOrder
@@ -411,7 +401,7 @@ function ActionRow({ index, text }) {
   );
 }
 
-export default function App() {
+export default function App({ session }) {
   const [url, setUrl] = useState("");
   const [addressHint, setAddressHint] = useState("");
   const [yelpUrl, setYelpUrl] = useState("");
@@ -419,6 +409,8 @@ export default function App() {
   const [analysis, setAnalysis] = useState(null);
   const [rawReviews, setRawReviews] = useState([]);
   const [sourceCounts, setSourceCounts] = useState({ google: 0, yelp: 0, tripadvisor: 0 });
+  const [competitorData, setCompetitorData] = useState(null);
+  const [competitorLoading, setCompetitorLoading] = useState(false);
   const [stage, setStage] = useState("idle");
   const [progress, setProgress] = useState(0);
   const [progMsg, setProgMsg] = useState("");
@@ -429,6 +421,10 @@ export default function App() {
   const showToast = (msg, color = C.green) => {
     setToast({ msg, color });
     setTimeout(() => setToast(null), 3000);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const analyse = async () => {
@@ -442,6 +438,7 @@ export default function App() {
     setAnalysis(null);
     setRawReviews([]);
     setSourceCounts({ google: 0, yelp: 0, tripadvisor: 0 });
+    setCompetitorData(null);
     setStage("fetching");
     setProgress(10);
     setProgMsg("Connecting to Google Maps...");
@@ -545,6 +542,7 @@ export default function App() {
       setProgMsg(`Done — ${reviews.length} reviews analysed.`);
       await new Promise((r) => setTimeout(r, 350));
       setAnalysis(fixed);
+      fetchCompetitors(d1.restaurant, fixed);
       setStage("done");
       setActiveTab("charts");
       showToast("✅ Premium analysis ready");
@@ -552,6 +550,49 @@ export default function App() {
       setError(e.message || "Something went wrong.");
       setStage("error");
       setProgress(0);
+    }
+  };
+
+  const fetchCompetitors = async (restaurantInfo, fixedAnalysis) => {
+    if (!restaurantInfo?.name) return;
+
+    setCompetitorLoading(true);
+
+    try {
+      const r = await fetch("/api/competitors", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          name: restaurantInfo.name,
+          address: restaurantInfo.address,
+          city: restaurantInfo.city,
+          yourRestaurant: {
+            rating: restaurantInfo.rating,
+            totalReviews: restaurantInfo.totalReviews,
+            healthScore: fixedAnalysis?.healthScore || 0,
+          },
+        }),
+      });
+
+      const t = await r.text();
+      let d;
+      try {
+        d = JSON.parse(t);
+      } catch {
+        throw new Error("Competitor error: " + t.substring(0, 120));
+      }
+
+      if (!r.ok) {
+        throw new Error(d.error || "Failed to load competitor comparison");
+      }
+
+      setCompetitorData(d);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setCompetitorLoading(false);
     }
   };
 
@@ -563,6 +604,8 @@ export default function App() {
     setAnalysis(null);
     setRawReviews([]);
     setSourceCounts({ google: 0, yelp: 0, tripadvisor: 0 });
+    setCompetitorData(null);
+    setCompetitorLoading(false);
     setStage("idle");
     setProgress(0);
     setError("");
@@ -754,6 +797,11 @@ export default function App() {
             </div>
 
             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+              {session?.user?.email ? (
+                <Pill color={C.white} bg="rgba(255,255,255,0.08)">
+                  {session.user.email}
+                </Pill>
+              ) : null}
               <Pill>Multi-source reviews</Pill>
               <Pill color={C.green2} bg="rgba(52,211,153,0.11)">
                 Claude-powered analysis
@@ -763,6 +811,21 @@ export default function App() {
                   Health {hs}%
                 </Pill>
               ) : null}
+              <button
+                onClick={handleLogout}
+                style={{
+                  border: "1px solid rgba(255,255,255,0.12)",
+                  background: "rgba(255,255,255,0.05)",
+                  color: "#edf2ff",
+                  borderRadius: 14,
+                  padding: "10px 14px",
+                  fontSize: 12,
+                  fontWeight: 700,
+                  cursor: "pointer",
+                }}
+              >
+                Logout
+              </button>
             </div>
           </div>
         </ShellCard>
@@ -932,6 +995,7 @@ export default function App() {
 
               {[
                 { k: "charts", l: "📊 Charts" },
+                { k: "competitors", l: "🏁 Competitors" },
                 { k: "owner", l: "🍽️ Owner" },
                 { k: "customer", l: "👥 Customer" },
                 { k: "food", l: "🍔 Food" },
@@ -1120,6 +1184,190 @@ export default function App() {
                       <span style={{ color: C.white, fontWeight: 700 }}> analysis</span>. Your core backend idea stays the same —
                       this simply makes your AI output more premium, easier to read, and more useful for owners and customers.
                     </div>
+                  </SectionCard>
+                </div>
+              )}
+
+              {activeTab === "competitors" && (
+                <div className="fadeIn">
+                  <div className="two-col">
+                    <SectionCard
+                      title="Competitor Comparison"
+                      sub="How your restaurant compares with nearby competitors"
+                    >
+                      {competitorLoading ? (
+                        <div style={{ color: C.muted, fontSize: 13 }}>Loading competitor comparison...</div>
+                      ) : !competitorData ? (
+                        <div style={{ color: C.muted, fontSize: 13 }}>
+                          No competitor comparison available yet.
+                        </div>
+                      ) : (
+                        <>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 14 }}>
+                            <Pill color={C.cyan} bg="rgba(34,211,238,0.12)">
+                              Category: {competitorData.keywordUsed}
+                            </Pill>
+                            <Pill color={C.white} bg="rgba(255,255,255,0.08)">
+                              Nearby competitors: {competitorData.competitors?.length || 0}
+                            </Pill>
+                          </div>
+
+                          <div
+                            style={{
+                              padding: 14,
+                              borderRadius: 18,
+                              background: "rgba(255,255,255,0.04)",
+                              border: `1px solid ${C.border}`,
+                            }}
+                          >
+                            <div style={{ color: C.white, fontSize: 14, fontWeight: 800, marginBottom: 10 }}>
+                              Recommendation
+                            </div>
+                            <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.75 }}>
+                              {competitorData.summary?.recommendation}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </SectionCard>
+
+                    <SectionCard
+                      title="Why You Are Winning / Losing"
+                      sub="Fast business summary for owners"
+                    >
+                      {competitorLoading ? (
+                        <div style={{ color: C.muted, fontSize: 13 }}>Preparing comparison summary...</div>
+                      ) : !competitorData ? (
+                        <div style={{ color: C.muted, fontSize: 13 }}>No summary yet.</div>
+                      ) : (
+                        <div className="two-col">
+                          <div
+                            style={{
+                              padding: 14,
+                              borderRadius: 18,
+                              background: "rgba(52,211,153,0.08)",
+                              border: "1px solid rgba(52,211,153,0.22)",
+                            }}
+                          >
+                            <div style={{ color: C.green2, fontSize: 13, fontWeight: 800, marginBottom: 10 }}>
+                              ✅ Where You Are Winning
+                            </div>
+                            {(competitorData.summary?.winning || []).length === 0 ? (
+                              <div style={{ color: C.muted, fontSize: 13 }}>No strong winning signals yet.</div>
+                            ) : (
+                              (competitorData.summary.winning || []).map((item, i) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    color: C.muted,
+                                    fontSize: 13,
+                                    lineHeight: 1.7,
+                                    marginBottom: 8,
+                                  }}
+                                >
+                                  • {item}
+                                </div>
+                              ))
+                            )}
+                          </div>
+
+                          <div
+                            style={{
+                              padding: 14,
+                              borderRadius: 18,
+                              background: "rgba(255,92,122,0.08)",
+                              border: "1px solid rgba(255,92,122,0.22)",
+                            }}
+                          >
+                            <div style={{ color: C.red, fontSize: 13, fontWeight: 800, marginBottom: 10 }}>
+                              ❌ Where You Are Losing
+                            </div>
+                            {(competitorData.summary?.losing || []).length === 0 ? (
+                              <div style={{ color: C.muted, fontSize: 13 }}>No major weak points detected.</div>
+                            ) : (
+                              (competitorData.summary.losing || []).map((item, i) => (
+                                <div
+                                  key={i}
+                                  style={{
+                                    color: C.muted,
+                                    fontSize: 13,
+                                    lineHeight: 1.7,
+                                    marginBottom: 8,
+                                  }}
+                                >
+                                  • {item}
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </SectionCard>
+                  </div>
+
+                  <SectionCard
+                    title="Nearby Competitors"
+                    sub="Businesses near your restaurant from Google Places"
+                    style={{ marginTop: 14 }}
+                  >
+                    {competitorLoading ? (
+                      <div style={{ color: C.muted, fontSize: 13 }}>Loading nearby competitors...</div>
+                    ) : !competitorData?.competitors?.length ? (
+                      <div style={{ color: C.muted, fontSize: 13 }}>No nearby competitors found.</div>
+                    ) : (
+                      <div style={{ display: "grid", gap: 12 }}>
+                        {competitorData.competitors.map((comp, i) => (
+                          <div
+                            key={comp.placeId || i}
+                            style={{
+                              display: "grid",
+                              gridTemplateColumns: "1.6fr 0.7fr 0.7fr 0.7fr",
+                              gap: 12,
+                              padding: 14,
+                              borderRadius: 18,
+                              background: "rgba(255,255,255,0.035)",
+                              border: `1px solid ${C.border}`,
+                            }}
+                          >
+                            <div>
+                              <div style={{ color: C.white, fontSize: 15, fontWeight: 800 }}>
+                                {comp.name}
+                              </div>
+                              <div style={{ color: C.muted, fontSize: 12, marginTop: 4, lineHeight: 1.6 }}>
+                                {comp.address}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div style={{ color: C.muted2, fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>
+                                Rating
+                              </div>
+                              <div style={{ color: C.white, fontSize: 15, fontWeight: 800, marginTop: 6 }}>
+                                ⭐ {comp.rating || 0}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div style={{ color: C.muted2, fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>
+                                Reviews
+                              </div>
+                              <div style={{ color: C.white, fontSize: 15, fontWeight: 800, marginTop: 6 }}>
+                                {comp.reviews || 0}
+                              </div>
+                            </div>
+
+                            <div>
+                              <div style={{ color: C.muted2, fontSize: 11, fontWeight: 700, textTransform: "uppercase" }}>
+                                Distance
+                              </div>
+                              <div style={{ color: C.white, fontSize: 15, fontWeight: 800, marginTop: 6 }}>
+                                {comp.distance !== null ? `${comp.distance} mi` : "—"}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </SectionCard>
                 </div>
               )}
@@ -1483,7 +1731,7 @@ export default function App() {
               <div style={{ fontSize: 22, fontWeight: 800, color: C.white, marginBottom: 8 }}>Your premium AI dashboard is ready</div>
               <div style={{ color: C.muted, fontSize: 14, lineHeight: 1.8, maxWidth: 860 }}>
                 Paste a restaurant URL above to load the redesigned dashboard with review analytics, trend charts, owner actions,
-                customer verdicts, food insights, hygiene signals, and premium data cards — all powered by your existing backend.
+                customer verdicts, food insights, hygiene signals, competitor comparison, and premium data cards — all powered by your existing backend.
               </div>
             </ShellCard>
           </div>

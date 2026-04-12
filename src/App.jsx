@@ -16,25 +16,25 @@ import {
 } from "recharts";
 
 const C = {
-  bg: "#060816",
-  bg2: "#0b1020",
-  panel: "rgba(14,18,35,0.82)",
-  panel2: "rgba(18,24,45,0.88)",
-  card: "rgba(255,255,255,0.05)",
-  cardStrong: "rgba(255,255,255,0.08)",
-  border: "rgba(255,255,255,0.08)",
-  borderStrong: "rgba(255,255,255,0.12)",
-  white: "#edf2ff",
-  muted: "rgba(237,242,255,0.62)",
-  muted2: "rgba(237,242,255,0.38)",
-  blue: "#4f8cff",
-  cyan: "#22d3ee",
-  green: "#00e676",
-  green2: "#34d399",
-  red: "#ff5c7a",
-  amber: "#fbbf24",
-  purple: "#b388ff",
-  shadow: "0 18px 60px rgba(0,0,0,0.35)",
+  bg: "#ffffff",
+  bg2: "#ffffff",
+  panel: "#ffffff",
+  panel2: "#ffffff",
+  card: "#ffffff",
+  cardStrong: "#ffffff",
+  border: "#e5e7eb",
+  borderStrong: "#d1d5db",
+  white: "#0f172a",
+  muted: "#6b7280",
+  muted2: "#94a3b8",
+  blue: "#2563eb",
+  cyan: "#0891b2",
+  green: "#16a34a",
+  green2: "#22c55e",
+  red: "#dc2626",
+  amber: "#d97706",
+  purple: "#7c3aed",
+  shadow: "0 4px 12px rgba(15,23,42,0.06)",
 };
 
 const healthColor = (s) => (s > 70 ? C.green : s > 40 ? C.cyan : C.red);
@@ -211,16 +211,14 @@ function buildChartData(rawReviews, analysis, sourceCounts) {
 }
 
 const glass = (extra = {}) => ({
-  background: C.panel,
+  background: "#ffffff",
   border: `1px solid ${C.border}`,
-  boxShadow: C.shadow,
-  backdropFilter: "blur(18px)",
-  WebkitBackdropFilter: "blur(18px)",
+  boxShadow: "0 2px 10px rgba(15,23,42,0.05)",
   ...extra,
 });
 
 const chartTooltipStyle = {
-  background: "#0b1020",
+  background: "#ffffff",
   border: `1px solid ${C.borderStrong}`,
   borderRadius: 12,
   color: C.white,
@@ -261,17 +259,7 @@ function SectionCard({ title, sub, right, children, style = {} }) {
         }}
       >
         <div>
-          <div
-            style={{
-              color: C.white,
-              fontSize: 18,
-              fontWeight: 700,
-              fontFamily: "'Playfair Display', serif",
-              letterSpacing: 0.15,
-            }}
-          >
-            {title}
-          </div>
+          <div style={{ color: C.white, fontSize: 18, fontWeight: 700, fontFamily: "'Playfair Display', serif" }}>{title}</div>
           {sub ? <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{sub}</div> : null}
         </div>
         {right}
@@ -305,7 +293,7 @@ function StatCard({ label, value, sub, accent }) {
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.045)",
+        background: "#ffffff",
         border: `1px solid ${C.border}`,
         borderRadius: 20,
         padding: 16,
@@ -343,7 +331,7 @@ function ReviewCard({ review, platformColor, platformLabel }) {
   return (
     <div
       style={{
-        background: "rgba(255,255,255,0.035)",
+        background: "#ffffff",
         border: `1px solid ${C.border}`,
         borderRadius: 18,
         padding: 14,
@@ -371,7 +359,7 @@ function ProgressRow({ label, value, total, color }) {
         <div style={{ color: C.muted, fontSize: 12 }}>{label}</div>
         <div style={{ color, fontSize: 12, fontWeight: 700 }}>{value}</div>
       </div>
-      <div style={{ height: 7, background: "rgba(255,255,255,0.06)", borderRadius: 999, overflow: "hidden" }}>
+      <div style={{ height: 7, background: "#f8fafc", borderRadius: 999, overflow: "hidden" }}>
         <div
           style={{
             height: "100%",
@@ -394,7 +382,7 @@ function ActionRow({ index, text }) {
         alignItems: "start",
         padding: 12,
         borderRadius: 16,
-        background: "rgba(255,255,255,0.035)",
+        background: "#ffffff",
         border: `1px solid ${C.border}`,
         marginBottom: 10,
       }}
@@ -405,8 +393,8 @@ function ActionRow({ index, text }) {
           width: 24,
           height: 24,
           borderRadius: 999,
-          background: `linear-gradient(135deg, ${C.blue}, ${C.green2})`,
-          color: "#04111b",
+          background: C.blue,
+          color: "#ffffff",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -671,12 +659,7 @@ export default function App() {
     <div
       style={{
         minHeight: "100vh",
-        background: `
-          radial-gradient(circle at top left, rgba(79,140,255,0.18), transparent 28%),
-          radial-gradient(circle at top right, rgba(34,211,238,0.16), transparent 22%),
-          radial-gradient(circle at bottom center, rgba(179,136,255,0.12), transparent 24%),
-          linear-gradient(180deg, #060816 0%, #090d1a 48%, #060816 100%)
-        `,
+        background: "#ffffff",
         color: C.white,
         fontFamily: "'Inter','Segoe UI',sans-serif",
       }}
@@ -685,9 +668,9 @@ export default function App() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
         *{box-sizing:border-box}
         html{scroll-behavior:smooth}
-        body{margin:0}
+        body{margin:0;background:#ffffff}
         ::-webkit-scrollbar{width:8px;height:8px}
-        ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:999px}
+        ::-webkit-scrollbar-thumb{background:#d1d5db;border-radius:999px}
         .app-wrap{max-width:1380px;margin:0 auto;padding:22px 18px 60px}
         .hero-grid{display:grid;grid-template-columns:1.15fr .85fr;gap:18px}
         .main-grid{display:grid;grid-template-columns:250px minmax(0,1fr);gap:18px;margin-top:18px}
@@ -701,25 +684,25 @@ export default function App() {
           padding:11px 12px;
           border-radius:14px;
           border:1px solid rgba(255,255,255,0.07);
-          background:rgba(255,255,255,0.02);
-          color:rgba(237,242,255,0.55);
+          background:#ffffff;
+          color:#475569;
           cursor:pointer;
           font-size:13px;
           font-weight:700;
           transition:all .18s ease;
         }
-        .tab-btn:hover{background:rgba(255,255,255,0.05);color:#edf2ff}
+        .tab-btn:hover{background:#f8fafc;color:#0f172a}
         .tab-btn.active{
-          color:#edf2ff;
-          border-color:rgba(34,211,238,0.28);
-          background:linear-gradient(135deg, rgba(79,140,255,0.15), rgba(34,211,238,0.10));
-          box-shadow:inset 0 0 0 1px rgba(34,211,238,0.12);
+          color:#0f172a;
+          border-color:#bfdbfe;
+          background:#eff6ff;
+          box-shadow:inset 0 0 0 1px rgba(37,99,235,0.08);
         }
         .input{
           width:100%;
-          background:rgba(255,255,255,0.03);
-          border:1px solid rgba(255,255,255,0.08);
-          color:#edf2ff;
+          background:#ffffff;
+          border:1px solid #e5e7eb;
+          color:#0f172a;
           border-radius:16px;
           padding:14px 16px;
           font-size:13px;
@@ -727,9 +710,9 @@ export default function App() {
           transition:border .18s ease, box-shadow .18s ease, background .18s ease;
         }
         .input:focus{
-          border-color:rgba(34,211,238,0.35);
-          box-shadow:0 0 0 4px rgba(34,211,238,0.08);
-          background:rgba(255,255,255,0.04);
+          border-color:#93c5fd;
+          box-shadow:0 0 0 4px rgba(37,99,235,0.08);
+          background:#ffffff;
         }
         .cta{
           width:100%;
@@ -737,8 +720,8 @@ export default function App() {
           cursor:pointer;
           padding:15px 18px;
           border-radius:18px;
-          background:linear-gradient(135deg, #4f8cff 0%, #22d3ee 52%, #00e676 100%);
-          color:#04111b;
+          background:#2563eb;
+          color:#ffffff;
           font-size:14px;
           font-weight:800;
           transition:transform .15s ease, opacity .15s ease;
@@ -784,7 +767,7 @@ export default function App() {
             position: "sticky",
             top: 12,
             zIndex: 100,
-            background: "rgba(8,12,26,0.82)",
+            background: "rgba(255,255,255,0.95)",
             marginBottom: 18,
           }}
         >
@@ -799,26 +782,16 @@ export default function App() {
                   display: "flex",
                   alignItems: "center",
                   justifyContent: "center",
-                  color: "#04111b",
+                  color: "#ffffff",
                   fontWeight: 900,
                   fontSize: 18,
-                  boxShadow: "0 14px 28px rgba(34,211,238,0.22)",
+                  boxShadow: "0 4px 12px rgba(37,99,235,0.15)",
                 }}
               >
                 GP
               </div>
               <div>
-                <div
-                  style={{
-                    fontSize: 22,
-                    fontWeight: 700,
-                    color: C.white,
-                    fontFamily: "'Playfair Display', serif",
-                    letterSpacing: 0.2,
-                  }}
-                >
-                  GuestPulse AI
-                </div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: C.white, fontFamily: "'Playfair Display', serif", letterSpacing: 0.2 }}>GuestPulse AI</div>
                 <div style={{ fontSize: 12, color: C.muted }}>Restaurant intelligence dashboard</div>
               </div>
             </div>
@@ -846,16 +819,7 @@ export default function App() {
               </Pill>
             </div>
 
-            <div
-              style={{
-                fontSize: 42,
-                lineHeight: 1.12,
-                fontWeight: 700,
-                maxWidth: 720,
-                fontFamily: "'Playfair Display', serif",
-                letterSpacing: 0.2,
-              }}
-            >
+            <div style={{ fontSize: 42, lineHeight: 1.12, fontWeight: 700, maxWidth: 720, fontFamily: "'Playfair Display', serif", letterSpacing: 0.2 }}>
               Turn restaurant reviews into charts, decisions, and actions.
             </div>
 
@@ -901,7 +865,7 @@ export default function App() {
                   className="cta"
                   onClick={reset}
                   style={{
-                    background: "rgba(255,255,255,0.06)",
+                    background: "#f8fafc",
                     color: C.white,
                     border: `1px solid ${C.borderStrong}`,
                   }}
@@ -918,7 +882,7 @@ export default function App() {
                   marginTop: 18,
                   padding: 16,
                   borderRadius: 18,
-                  background: "rgba(255,255,255,0.04)",
+                  background: "#ffffff",
                   border: `1px solid ${C.border}`,
                 }}
               >
@@ -950,16 +914,7 @@ export default function App() {
                 <div style={{ color: C.muted, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
                   Workspace
                 </div>
-                <div
-                  style={{
-                    color: C.white,
-                    fontSize: 24,
-                    fontWeight: 700,
-                    marginTop: 4,
-                    fontFamily: "'Playfair Display', serif",
-                    letterSpacing: 0.15,
-                  }}
-                >
+                <div style={{ color: C.white, fontSize: 24, fontWeight: 700, marginTop: 4, fontFamily: "'Playfair Display', serif" }}>
                   {restaurant?.name || "Founder Dashboard"}
                 </div>
               </div>
@@ -970,7 +925,7 @@ export default function App() {
                   gap: 10,
                   padding: "10px 12px",
                   borderRadius: 18,
-                  background: "rgba(255,255,255,0.045)",
+                  background: "#ffffff",
                   border: `1px solid ${C.border}`,
                 }}
               >
@@ -1241,7 +1196,7 @@ export default function App() {
                             style={{
                               padding: 14,
                               borderRadius: 18,
-                              background: "rgba(255,255,255,0.04)",
+                              background: "#ffffff",
                               border: `1px solid ${C.border}`,
                             }}
                           >
@@ -1350,7 +1305,7 @@ export default function App() {
                               gap: 12,
                               padding: 14,
                               borderRadius: 18,
-                              background: "rgba(255,255,255,0.035)",
+                              background: "#ffffff",
                               border: `1px solid ${C.border}`,
                             }}
                           >
@@ -1739,7 +1694,7 @@ export default function App() {
                   padding: "14px 16px",
                   borderRadius: 18,
                   border: `1px solid ${C.borderStrong}`,
-                  background: "rgba(255,255,255,0.04)",
+                  background: "#ffffff",
                   color: C.white,
                   fontSize: 13,
                   fontWeight: 800,
@@ -1765,4 +1720,3 @@ export default function App() {
     </div>
   );
 }
-

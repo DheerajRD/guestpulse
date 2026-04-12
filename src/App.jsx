@@ -261,7 +261,17 @@ function SectionCard({ title, sub, right, children, style = {} }) {
         }}
       >
         <div>
-          <div style={{ color: C.white, fontSize: 16, fontWeight: 700 }}>{title}</div>
+          <div
+            style={{
+              color: C.white,
+              fontSize: 18,
+              fontWeight: 700,
+              fontFamily: "'Playfair Display', serif",
+              letterSpacing: 0.15,
+            }}
+          >
+            {title}
+          </div>
           {sub ? <div style={{ color: C.muted, fontSize: 12, marginTop: 4 }}>{sub}</div> : null}
         </div>
         {right}
@@ -672,7 +682,7 @@ export default function App() {
       }}
     >
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700;800&display=swap');
         *{box-sizing:border-box}
         html{scroll-behavior:smooth}
         body{margin:0}
@@ -798,7 +808,17 @@ export default function App() {
                 GP
               </div>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 800, color: C.white }}>GuestPulse AI</div>
+                <div
+                  style={{
+                    fontSize: 22,
+                    fontWeight: 700,
+                    color: C.white,
+                    fontFamily: "'Playfair Display', serif",
+                    letterSpacing: 0.2,
+                  }}
+                >
+                  GuestPulse AI
+                </div>
                 <div style={{ fontSize: 12, color: C.muted }}>Restaurant intelligence dashboard</div>
               </div>
             </div>
@@ -826,7 +846,16 @@ export default function App() {
               </Pill>
             </div>
 
-            <div style={{ fontSize: 38, lineHeight: 1.08, fontWeight: 800, maxWidth: 720 }}>
+            <div
+              style={{
+                fontSize: 42,
+                lineHeight: 1.12,
+                fontWeight: 700,
+                maxWidth: 720,
+                fontFamily: "'Playfair Display', serif",
+                letterSpacing: 0.2,
+              }}
+            >
               Turn restaurant reviews into charts, decisions, and actions.
             </div>
 
@@ -921,7 +950,16 @@ export default function App() {
                 <div style={{ color: C.muted, fontSize: 12, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>
                   Workspace
                 </div>
-                <div style={{ color: C.white, fontSize: 22, fontWeight: 800, marginTop: 4 }}>
+                <div
+                  style={{
+                    color: C.white,
+                    fontSize: 24,
+                    fontWeight: 700,
+                    marginTop: 4,
+                    fontFamily: "'Playfair Display', serif",
+                    letterSpacing: 0.15,
+                  }}
+                >
                   {restaurant?.name || "Founder Dashboard"}
                 </div>
               </div>
@@ -1727,3 +1765,4 @@ export default function App() {
     </div>
   );
 }
+

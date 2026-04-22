@@ -15,7 +15,6 @@ import {
   Legend,
 } from "recharts";
 
-export default function MainApp() {
 const C = {
   bg: "#ffffff",
   bg2: "#ffffff",
@@ -410,8 +409,8 @@ function ActionRow({ index, text }) {
   );
 }
 
-export default function App() {
-  const [url, setUrl] = useState("");
+export default function MainApp() {
+ const [url, setUrl] = useState("");
   const [addressHint, setAddressHint] = useState("");
   const [yelpUrl, setYelpUrl] = useState("");
   const [restaurant, setRestaurant] = useState(null);

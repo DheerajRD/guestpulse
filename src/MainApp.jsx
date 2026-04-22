@@ -1,4 +1,3 @@
-export default function MainApp() {
  import { useMemo, useState } from "react";
 import {
   ResponsiveContainer,
@@ -16,6 +15,7 @@ import {
   Legend,
 } from "recharts";
 
+export default function MainApp() {
 const C = {
   bg: "#ffffff",
   bg2: "#ffffff",

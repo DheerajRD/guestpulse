@@ -16,7 +16,7 @@ module.exports = async function handler(req, res) {
     tripRunId,
     action,
     addressHint,
-    yelpUrl
+    yelpUrl,
   } = req.body || {};
 
   const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
@@ -31,175 +31,149 @@ module.exports = async function handler(req, res) {
   }
 
   try {
-    const normalizeText = (value) => {
-      if (value === null || value === undefined) return "";
-      return String(value).replace(/\s+/g, " ").trim();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+
+    const isRecentReview = (dateValue) => {
+      if (!dateValue) return true;
+      const d = new Date(dateValue);
+      if (isNaN(d.getTime())) return true;
+      return d >= sixMonthsAgo;
     };
 
-    const safeNumber = (value) => {
-      const n = Number(value);
-      return Number.isFinite(n) ? n : 0;
-    };
-
-    const normalizeDate = (value) => {
-      if (!value) return "";
-
-      if (typeof value === "number") {
-        const d = new Date(value);
-        return isNaN(d.getTime()) ? "" : d.toISOString();
-      }
-
-      const raw = String(value).trim();
-      if (!raw) return "";
-
-      const parsed = new Date(raw);
-      if (!isNaN(parsed.getTime())) return parsed.toISOString();
-
-      return raw;
-    };
-
-    const normalizeReview = (review, source) => {
-      const text =
-        normalizeText(
-          review?.text ||
-          review?.reviewText ||
-          review?.comment ||
-          review?.content ||
-          review?.reviewBody ||
-          review?.review ||
-          review?.reviewTextSnippet ||
-          review?.textSnippet ||
-          ""
-        );
-
-      if (!text || text.length < 10) return null;
-
-      const author = normalizeText(
-        review?.name ||
-        review?.reviewerName ||
-        review?.author ||
-        review?.userName ||
-        review?.username ||
-        review?.reviewer ||
-        "Anonymous"
-      );
-
-      const rating = safeNumber(
-        review?.stars ??
-        review?.rating ??
-        review?.score ??
-        review?.reviewRating ??
-        0
-      );
-
-      const time = normalizeDate(
-        review?.publishedAtDate ||
-        review?.date ||
-        review?.publishedDate ||
-        review?.reviewDate ||
-        review?.time ||
-        review?.createdAt ||
-        review?.publishedAt ||
-        ""
-      );
-
-      return {
-        source,
-        author,
-        rating,
-        text,
-        time
-      };
-    };
-
-    const dedupeReviews = (reviews) => {
-      const seen = new Set();
-      const out = [];
-
-      for (const review of reviews) {
-        const key = [
-          review.source || "",
-          (review.author || "").toLowerCase(),
-          String(review.rating || 0),
-          (review.text || "").toLowerCase().slice(0, 180),
-          review.time || ""
-        ].join("|");
-
-        if (seen.has(key)) continue;
-        seen.add(key);
-        out.push(review);
-      }
-
-      return out;
-    };
-
-    const fetchReviewsFromDataset = async (datasetId, source) => {
-      if (!datasetId) return [];
-
+    const fetchReviews = async (datasetId, source) => {
       const itemsRes = await fetch(
         "https://api.apify.com/v2/datasets/" +
           datasetId +
           "/items?token=" +
           APIFY_API_TOKEN +
-          "&limit=200"
+          "&limit=300"
       );
-
-      if (!itemsRes.ok) {
-        const errText = await itemsRes.text();
-        console.log(source, "dataset fetch failed:", errText);
-        return [];
-      }
 
       const items = await itemsRes.json();
       const reviews = [];
 
       console.log(source, "dataset items count:", Array.isArray(items) ? items.length : 0);
 
+      if (Array.isArray(items) && items.length > 0) {
+        console.log(source, "sample item:", JSON.stringify(items[0]).slice(0, 900));
+      }
+
       if (!Array.isArray(items)) return [];
 
+      if (source === "yelp") {
+        for (const item of items) {
+          if (item?.demo === true) {
+            console.warn("Yelp returned demo data. Ignoring.");
+            continue;
+          }
+
+          const text = item.reviewText || item.text || item.description || "";
+          const rating = item.reviewRating || item.rating || item.stars || 0;
+          const author = item.reviewerName || item.authorName || item.name || "Anonymous";
+          const time = item.reviewDate || item.date || item.localizedDate || "";
+
+          if (!text || String(text).trim().length < 5) continue;
+          if (!isRecentReview(time)) continue;
+
+          reviews.push({
+            source: "yelp",
+            author,
+            rating,
+            text: String(text).trim(),
+            time,
+          });
+        }
+
+        return reviews;
+      }
+
+      const getText = (obj) =>
+        obj?.text ||
+        obj?.reviewText ||
+        obj?.description ||
+        obj?.comment ||
+        obj?.content ||
+        obj?.reviewBody ||
+        obj?.review ||
+        "";
+
+      const getAuthor = (obj) =>
+        obj?.name ||
+        obj?.reviewerName ||
+        obj?.author ||
+        obj?.userName ||
+        obj?.username ||
+        "Anonymous";
+
+      const getRating = (obj) =>
+        obj?.stars ||
+        obj?.rating ||
+        obj?.score ||
+        0;
+
+      const getTime = (obj) =>
+        obj?.publishedAtDate ||
+        obj?.localizedDate ||
+        obj?.date ||
+        obj?.publishedDate ||
+        obj?.reviewDate ||
+        obj?.time ||
+        "";
+
       for (const item of items) {
-        if (Array.isArray(item?.reviews)) {
-          for (const nested of item.reviews) {
-            const normalized = normalizeReview(nested, source);
-            if (normalized) reviews.push(normalized);
+        const nestedReviews = item.reviews || [];
+
+        for (const r of nestedReviews) {
+          const text = getText(r);
+          if (text && text.trim().length > 10) {
+            reviews.push({
+              source,
+              author: getAuthor(r),
+              rating: getRating(r),
+              text: text.trim(),
+              time: getTime(r),
+            });
           }
         }
 
-        const flat = normalizeReview(item, source);
-        if (flat) reviews.push(flat);
+        const flatText = getText(item);
+        if (flatText && flatText.trim().length > 10) {
+          reviews.push({
+            source,
+            author: getAuthor(item),
+            rating: getRating(item),
+            text: flatText.trim(),
+            time: getTime(item),
+          });
+        }
       }
 
-      return dedupeReviews(reviews);
+      return reviews;
     };
 
     const checkRun = async (id, source) => {
-      if (!id) {
-        return { status: "done", reviews: [] };
-      }
+      if (!id) return { status: "done", reviews: [] };
 
-      const runRes = await fetch(
-        "https://api.apify.com/v2/actor-runs/" +
-          id +
-          "?token=" +
-          APIFY_API_TOKEN
+      const r = await fetch(
+        "https://api.apify.com/v2/actor-runs/" + id + "?token=" + APIFY_API_TOKEN
       );
 
-      if (!runRes.ok) {
-        const errText = await runRes.text();
-        console.log(source, "run check failed:", errText);
-        return { status: "done", reviews: [] };
-      }
+      const d = await r.json();
+      const status = d?.data?.status;
 
-      const runData = await runRes.json();
-      const status = runData?.data?.status;
+      console.log(source, "run status:", status, "run id:", id);
 
       if (status === "SUCCEEDED") {
-        const datasetId = runData?.data?.defaultDatasetId;
-        const reviews = await fetchReviewsFromDataset(datasetId, source);
+        const datasetId = d?.data?.defaultDatasetId;
+        if (!datasetId) return { status: "done", reviews: [] };
+
+        const reviews = await fetchReviews(datasetId, source);
         return { status: "done", reviews };
       }
 
       if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") {
+        console.log(source, "run ended without usable results:", status);
         return { status: "done", reviews: [] };
       }
 
@@ -210,7 +184,7 @@ module.exports = async function handler(req, res) {
       const [gResult, yResult, tResult] = await Promise.all([
         checkRun(runId, "google"),
         checkRun(yelpRunId, "yelp"),
-        checkRun(tripRunId, "tripadvisor")
+        checkRun(tripRunId, "tripadvisor"),
       ]);
 
       const allDone =
@@ -222,14 +196,24 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ status: "running" });
       }
 
-      const allReviews = dedupeReviews([
+      const allReviews = [
         ...gResult.reviews,
         ...yResult.reviews,
-        ...tResult.reviews
-      ]);
+        ...tResult.reviews,
+      ];
 
       if (allReviews.length === 0) {
-        return res.status(404).json({ error: "No reviews found from any source." });
+        return res.status(200).json({
+          status: "done",
+          reviews: [],
+          total: 0,
+          sources: {
+            google: gResult.reviews.length,
+            yelp: yResult.reviews.length,
+            tripadvisor: tResult.reviews.length,
+          },
+          warning: "No reviews were returned from the provided source(s).",
+        });
       }
 
       return res.status(200).json({
@@ -239,8 +223,8 @@ module.exports = async function handler(req, res) {
         sources: {
           google: gResult.reviews.length,
           yelp: yResult.reviews.length,
-          tripadvisor: tResult.reviews.length
-        }
+          tripadvisor: tResult.reviews.length,
+        },
       });
     }
 
@@ -267,14 +251,14 @@ module.exports = async function handler(req, res) {
       const directMatch = placeUrl.match(/place_id:([a-zA-Z0-9_-]+)/);
       if (directMatch) {
         placeId = directMatch[1];
-        console.log("Method 0 (direct place_id):", placeId);
+        console.log("Method 0 direct place_id:", placeId);
       }
 
       if (!placeId) {
         const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
         if (chMatch) {
           placeId = chMatch[0];
-          console.log("Method 1 found:", placeId);
+          console.log("Method 1 ChI found:", placeId);
         }
       }
 
@@ -300,6 +284,7 @@ module.exports = async function handler(req, res) {
             const candidateName = normalizeName(r.name || "");
             return candidateName.includes(requested) || requested.includes(candidateName);
           });
+
           if (contains) return contains;
 
           return results[0];
@@ -339,7 +324,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 2 found:", placeId, best.name);
+          console.log("Method 2 nearby exact coords found:", placeId, best.name);
         }
       }
 
@@ -360,7 +345,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 3 found:", placeId, best.name);
+          console.log("Method 3 nearby coords found:", placeId, best.name);
         }
       }
 
@@ -381,7 +366,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 4 found:", placeId, best.name);
+          console.log("Method 4 text search exact bias found:", placeId, best.name);
         }
       }
 
@@ -398,135 +383,182 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 5 found:", placeId, best.name);
+          console.log("Method 5 plain text fallback found:", placeId, best.name);
         }
       }
     }
 
-    if (!placeId) {
-      return res.status(400).json({ error: "Could not find restaurant." });
+    if (!placeId && !yelpUrl) {
+      return res.status(400).json({ error: "Please provide Google Maps URL or Yelp URL." });
     }
 
-    const detRes = await fetch(
-      "https://maps.googleapis.com/maps/api/place/details/json?place_id=" +
-        placeId +
-        "&fields=name,rating,user_ratings_total,formatted_address,geometry,address_components&key=" +
-        GOOGLE_API_KEY
-    );
+    let place = null;
+    let city = "";
+    let cleanUrl = null;
+    let searchQuery = "";
 
-    const detData = await detRes.json();
+    if (placeId) {
+      const detRes = await fetch(
+        "https://maps.googleapis.com/maps/api/place/details/json?place_id=" +
+          placeId +
+          "&fields=name,rating,user_ratings_total,formatted_address,geometry,address_components&key=" +
+          GOOGLE_API_KEY
+      );
 
-    if (detData.status !== "OK") {
-      return res.status(500).json({ error: "Google Place Details failed." });
-    }
+      const detData = await detRes.json();
 
-    const place = detData.result;
-    const addressParts = (place.formatted_address || "").split(",");
-    const city = addressParts.length > 1 ? addressParts[1].trim() : "";
-    const cleanUrl = "https://www.google.com/maps/place/?q=place_id:" + placeId;
-
-    const searchQuery = [
-      place.name || "",
-      place.formatted_address || "",
-      city || "",
-      addressHint || ""
-    ]
-      .join(" ")
-      .trim();
-
-    console.log("Search query for Yelp/TripAdvisor:", searchQuery);
-
-    const gRes = await fetch(
-      "https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=" + APIFY_API_TOKEN,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          startUrls: [{ url: cleanUrl }],
-          maxReviews: 150,
-          reviewsSort: "newest",
-          language: "en"
-        })
+      if (detData.status !== "OK") {
+        return res.status(500).json({ error: "Google Place Details failed." });
       }
-    );
 
-    const gData = await gRes.json();
+      place = detData.result;
+
+      const addressParts = (place.formatted_address || "").split(",");
+      city = addressParts.length > 1 ? addressParts[1].trim() : "";
+      cleanUrl = "https://www.google.com/maps/place/?q=place_id:" + placeId;
+
+      searchQuery = [
+        place.name || "",
+        place.formatted_address || "",
+        city || "",
+        addressHint || "",
+      ]
+        .join(" ")
+        .trim();
+    } else {
+      const fallbackName = (() => {
+        try {
+          const u = new URL(yelpUrl);
+          const slug = (u.pathname.split("/").pop() || "").replace(/-/g, " ").trim();
+          return slug || "Yelp Business";
+        } catch {
+          return "Yelp Business";
+        }
+      })();
+
+      place = {
+        name: fallbackName,
+        formatted_address: addressHint || "Yelp URL provided",
+        rating: null,
+        user_ratings_total: null,
+      };
+
+      city = "";
+      cleanUrl = null;
+      searchQuery = [fallbackName, addressHint || ""].join(" ").trim();
+    }
+
+    console.log("Search query:", searchQuery);
+
+    let gData = null;
+
+    if (cleanUrl) {
+      const gRes = await fetch(
+        "https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=" + APIFY_API_TOKEN,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            startUrls: [{ url: cleanUrl }],
+            maxReviews: 150,
+            reviewsSort: "newest",
+            language: "en",
+          }),
+        }
+      );
+
+      gData = await gRes.json();
+      console.log("Google runId:", gData?.data?.id || null);
+    }
 
     let safeYelpRunId = null;
 
     try {
       if (yelpUrl && yelpUrl.trim()) {
-        console.log("Starting Yelp with direct URL:", yelpUrl.trim());
+        console.log("Starting Yelp actor:", yelpUrl.trim());
 
         const yRes = await fetch(
-          "https://api.apify.com/v2/acts/agents~yelp-reviews/runs?token=" + APIFY_API_TOKEN,
+          "https://api.apify.com/v2/acts/tri_angle~yelp-review-scraper/runs?token=" +
+            APIFY_API_TOKEN,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              startUrls: [{ url: yelpUrl.trim() }],
-              maxItems: 30,
-              sortBy: "yelp"
-            })
+              maxReviewsPerUrl: 50,
+              startUrls: [
+                {
+                  url: yelpUrl.trim(),
+                },
+              ],
+            }),
           }
         );
 
-        if (!yRes.ok) {
-          const errText = await yRes.text();
-          console.log("Yelp API error:", errText);
-        } else {
-          const yData = await yRes.json();
+        const yText = await yRes.text();
+        console.log("Yelp raw start response:", yText.slice(0, 800));
+
+        if (yRes.ok) {
+          const yData = JSON.parse(yText);
           safeYelpRunId = yData?.data?.id || null;
+        } else {
+          console.log("Yelp API error:", yText);
         }
       } else {
-        console.log("No Yelp URL provided. Skipping Yelp start.");
+        console.log("No Yelp URL provided. Skipping Yelp.");
       }
     } catch (err) {
       console.log("Yelp failed:", err.message);
     }
 
+    console.log("Yelp runId:", safeYelpRunId);
+
     let safeTripRunId = null;
 
-    try {
-      const tRes = await fetch(
-        "https://api.apify.com/v2/acts/maxcopell~tripadvisor-reviews/runs?token=" + APIFY_API_TOKEN,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            queries: [searchQuery],
-            maxReviews: 50
-          })
-        }
-      );
+    if (cleanUrl) {
+      try {
+        const tRes = await fetch(
+          "https://api.apify.com/v2/acts/maxcopell~tripadvisor-reviews/runs?token=" +
+            APIFY_API_TOKEN,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              queries: [searchQuery],
+              maxReviews: 50,
+            }),
+          }
+        );
 
-      if (!tRes.ok) {
-        const errText = await tRes.text();
-        console.log("TripAdvisor API error:", errText);
-      } else {
-        const tData = await tRes.json();
-        safeTripRunId = tData?.data?.id || null;
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          safeTripRunId = tData?.data?.id || null;
+        } else {
+          const errText = await tRes.text();
+          console.log("TripAdvisor API error:", errText);
+        }
+      } catch (err) {
+        console.log("TripAdvisor failed:", err.message);
       }
-    } catch (err) {
-      console.log("TripAdvisor failed:", err.message);
     }
+
+    console.log("TripAdvisor runId:", safeTripRunId);
 
     return res.status(200).json({
       status: "started",
       runId: gData?.data?.id || null,
       yelpRunId: safeYelpRunId,
-      tripRunId: safeTripRunId,
+      tripRunId: cleanUrl ? safeTripRunId : null,
       restaurant: {
         name: place.name,
         city,
         address: place.formatted_address,
         rating: place.rating,
         totalReviews: place.user_ratings_total,
-        placeId
-      }
+        placeId: placeId || null,
+      },
     });
   } catch (err) {
-    console.error("reviews.js error:", err);
+    console.error(err);
     return res.status(500).json({ error: err.message || "Server error" });
   }
 };

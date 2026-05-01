@@ -70,38 +70,59 @@ module.exports = async function handler(req, res) {
           review?.review ||
           review?.reviewTextSnippet ||
           review?.textSnippet ||
+          review?.description ||
+          review?.snippet ||
+          review?.localizedText ||
+          review?.feedback ||
+          review?.message ||
+          review?.body ||
+          review?.reviewContent ||
+          review?.fullReview ||
+          review?.localizedReview ||
+          review?.reviewDescription ||
+          review?.reviewerText ||
           ""
         );
 
-      if (!text || text.length < 10) return null;
+      if (!text || text.length < 5) return null;
 
       const author = normalizeText(
         review?.name ||
-        review?.reviewerName ||
-        review?.author ||
-        review?.userName ||
-        review?.username ||
-        review?.reviewer ||
-        "Anonymous"
+          review?.reviewerName ||
+          review?.author ||
+          review?.userName ||
+          review?.username ||
+          review?.reviewer ||
+          review?.user?.name ||
+          review?.user?.displayName ||
+          review?.user ||
+          review?.authorName ||
+          "Anonymous"
       );
 
       const rating = safeNumber(
         review?.stars ??
-        review?.rating ??
-        review?.score ??
-        review?.reviewRating ??
-        0
+          review?.rating ??
+          review?.score ??
+          review?.reviewRating ??
+          review?.ratingValue ??
+          review?.reviewRating?.ratingValue ??
+          review?.reviewRating?.value ??
+          0
       );
 
       const time = normalizeDate(
         review?.publishedAtDate ||
-        review?.date ||
-        review?.publishedDate ||
-        review?.reviewDate ||
-        review?.time ||
-        review?.createdAt ||
-        review?.publishedAt ||
-        ""
+          review?.date ||
+          review?.publishedDate ||
+          review?.reviewDate ||
+          review?.time ||
+          review?.createdAt ||
+          review?.publishedAt ||
+          review?.datePublished ||
+          review?.localizedDate ||
+          review?.reviewCreatedAt ||
+          ""
       );
 
       return {
@@ -208,7 +229,7 @@ module.exports = async function handler(req, res) {
           datasetId +
           "/items?token=" +
           APIFY_API_TOKEN +
-          "&limit=200"
+          "&limit=1000"
       );
 
       if (!itemsRes.ok) {
@@ -225,10 +246,30 @@ module.exports = async function handler(req, res) {
       if (!Array.isArray(items)) return [];
 
       for (const item of items) {
-        if (Array.isArray(item?.reviews)) {
-          for (const nested of item.reviews) {
-            const normalized = normalizeReview(nested, source);
-            if (normalized) reviews.push(normalized);
+        if (item?.demo === true) {
+          console.log(source, "demo item ignored");
+          continue;
+        }
+
+        const nestedKeys = [
+          "reviews",
+          "comments",
+          "reviewsList",
+          "reviewList",
+          "feedback",
+          "items",
+          "data",
+          "reviewData",
+          "businessReviews",
+          "userReviews"
+        ];
+
+        for (const key of nestedKeys) {
+          if (Array.isArray(item?.[key])) {
+            for (const nested of item[key]) {
+              const normalized = normalizeReview(nested, source);
+              if (normalized) reviews.push(normalized);
+            }
           }
         }
 
@@ -236,7 +277,9 @@ module.exports = async function handler(req, res) {
         if (flat) reviews.push(flat);
       }
 
-      return dedupeReviews(reviews);
+      const clean = dedupeReviews(reviews);
+      console.log(source, "normalized reviews count:", clean.length);
+      return clean;
     };
 
     const checkRun = async (id, source) => {

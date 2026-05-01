@@ -574,7 +574,7 @@ module.exports = async function handler(req, res) {
         console.log("Starting Yelp with direct URL:", yelpUrl.trim());
 
         const yRes = await fetch(
-          "https://api.apify.com/v2/acts/agents~yelp-reviews/runs?token=" + APIFY_API_TOKEN,
+          "https://api.apify.com/v2/acts/tri_angle~yelp-review-scraper/runs?token=" + APIFY_API_TOKEN,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

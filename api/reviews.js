@@ -60,82 +60,43 @@ module.exports = async function handler(req, res) {
     };
 
     const normalizeReview = (review, source) => {
-      const text = normalizeText(
-        review?.text ||
-          review?.reviewText ||
-          review?.review_text ||
-          review?.comment ||
-          review?.content ||
-          review?.description ||
-          review?.snippet ||
-          review?.body ||
-          review?.message ||
-          review?.reviewBody ||
-          review?.review_body ||
-          review?.reviewContent ||
-          review?.review_content ||
-          review?.fullReview ||
-          review?.full_review ||
-          review?.localizedText ||
-          review?.localized_text ||
-          review?.feedback ||
-          ""
-      );
+  const text = normalizeText(
+    review?.Text ||
+    review?.text ||
+    review?.reviewText ||
+    review?.description ||
+    ""
+  );
 
-      if (!text || text.length < 3) return null;
+  if (!text || text.length < 3) return null;
 
-      const author = normalizeText(
-        review?.name ||
-          review?.reviewerName ||
-          review?.reviewer_name ||
-          review?.author ||
-          review?.authorName ||
-          review?.author_name ||
-          review?.userName ||
-          review?.user_name ||
-          review?.username ||
-          review?.reviewer ||
-          review?.user?.name ||
-          review?.user?.displayName ||
-          review?.user ||
-          "Anonymous"
-      );
+  const author = normalizeText(
+    review?.["Reviewer Name"] ||
+    review?.reviewerName ||
+    review?.name ||
+    "Anonymous"
+  );
 
-      const rating = safeNumber(
-        review?.stars ??
-          review?.rating ??
-          review?.score ??
-          review?.reviewRating ??
-          review?.review_rating ??
-          review?.ratingValue ??
-          review?.rating_value ??
-          review?.reviewRating?.ratingValue ??
-          review?.reviewRating?.value ??
-          0
-      );
+  const rating = safeNumber(
+    review?.Rating ??
+    review?.rating ??
+    0
+  );
 
-      const time = normalizeDate(
-        review?.publishedAtDate ||
-          review?.published_at_date ||
-          review?.date ||
-          review?.publishedDate ||
-          review?.published_date ||
-          review?.reviewDate ||
-          review?.review_date ||
-          review?.time ||
-          review?.createdAt ||
-          review?.created_at ||
-          review?.publishedAt ||
-          review?.published_at ||
-          review?.datePublished ||
-          review?.date_published ||
-          review?.localizedDate ||
-          review?.localized_date ||
-          ""
-      );
+  const time = normalizeDate(
+    review?.Date ||
+    review?.date ||
+    ""
+  );
 
-      return { source, author, rating, text, time };
-    };
+  return {
+    source,
+    author,
+    rating,
+    text,
+    time
+  };
+};
 
     const dedupeReviews = (reviews) => {
       const seen = new Set();

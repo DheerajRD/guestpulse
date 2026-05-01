@@ -60,43 +60,44 @@ module.exports = async function handler(req, res) {
     };
 
     const normalizeReview = (review, source) => {
-      const text =
-        normalizeText(
-          review?.text ||
+      const text = normalizeText(
+        review?.text ||
           review?.reviewText ||
+          review?.review_text ||
           review?.comment ||
           review?.content ||
-          review?.reviewBody ||
-          review?.review ||
-          review?.reviewTextSnippet ||
-          review?.textSnippet ||
           review?.description ||
           review?.snippet ||
-          review?.localizedText ||
-          review?.feedback ||
-          review?.message ||
           review?.body ||
+          review?.message ||
+          review?.reviewBody ||
+          review?.review_body ||
           review?.reviewContent ||
+          review?.review_content ||
           review?.fullReview ||
-          review?.localizedReview ||
-          review?.reviewDescription ||
-          review?.reviewerText ||
+          review?.full_review ||
+          review?.localizedText ||
+          review?.localized_text ||
+          review?.feedback ||
           ""
-        );
+      );
 
-      if (!text || text.length < 5) return null;
+      if (!text || text.length < 3) return null;
 
       const author = normalizeText(
         review?.name ||
           review?.reviewerName ||
+          review?.reviewer_name ||
           review?.author ||
+          review?.authorName ||
+          review?.author_name ||
           review?.userName ||
+          review?.user_name ||
           review?.username ||
           review?.reviewer ||
           review?.user?.name ||
           review?.user?.displayName ||
           review?.user ||
-          review?.authorName ||
           "Anonymous"
       );
 
@@ -105,7 +106,9 @@ module.exports = async function handler(req, res) {
           review?.rating ??
           review?.score ??
           review?.reviewRating ??
+          review?.review_rating ??
           review?.ratingValue ??
+          review?.rating_value ??
           review?.reviewRating?.ratingValue ??
           review?.reviewRating?.value ??
           0
@@ -113,25 +116,25 @@ module.exports = async function handler(req, res) {
 
       const time = normalizeDate(
         review?.publishedAtDate ||
+          review?.published_at_date ||
           review?.date ||
           review?.publishedDate ||
+          review?.published_date ||
           review?.reviewDate ||
+          review?.review_date ||
           review?.time ||
           review?.createdAt ||
+          review?.created_at ||
           review?.publishedAt ||
+          review?.published_at ||
           review?.datePublished ||
+          review?.date_published ||
           review?.localizedDate ||
-          review?.reviewCreatedAt ||
+          review?.localized_date ||
           ""
       );
 
-      return {
-        source,
-        author,
-        rating,
-        text,
-        time
-      };
+      return { source, author, rating, text, time };
     };
 
     const dedupeReviews = (reviews) => {
@@ -245,36 +248,24 @@ module.exports = async function handler(req, res) {
 
       if (!Array.isArray(items)) return [];
 
-      for (const item of items) {
-        if (item?.demo === true) {
-          console.log(source, "demo item ignored");
-          continue;
-        }
+      const collectReviews = (obj) => {
+        if (!obj || typeof obj !== "object") return;
 
-        const nestedKeys = [
-          "reviews",
-          "comments",
-          "reviewsList",
-          "reviewList",
-          "feedback",
-          "items",
-          "data",
-          "reviewData",
-          "businessReviews",
-          "userReviews"
-        ];
+        const normalized = normalizeReview(obj, source);
+        if (normalized) reviews.push(normalized);
 
-        for (const key of nestedKeys) {
-          if (Array.isArray(item?.[key])) {
-            for (const nested of item[key]) {
-              const normalized = normalizeReview(nested, source);
-              if (normalized) reviews.push(normalized);
-            }
+        for (const value of Object.values(obj)) {
+          if (Array.isArray(value)) {
+            for (const child of value) collectReviews(child);
+          } else if (value && typeof value === "object") {
+            collectReviews(value);
           }
         }
+      };
 
-        const flat = normalizeReview(item, source);
-        if (flat) reviews.push(flat);
+      for (const item of items) {
+        if (item?.demo === true) continue;
+        collectReviews(item);
       }
 
       const clean = dedupeReviews(reviews);

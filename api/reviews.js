@@ -17,11 +17,8 @@ module.exports = async function handler(req, res) {
     action,
     addressHint,
     yelpUrl,
-    monthsFilter,
-    months
+    monthsBack
   } = req.body || {};
-
-  const selectedMonthsFilter = monthsFilter || months || "all";
 
   const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
   const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
@@ -62,64 +59,10 @@ module.exports = async function handler(req, res) {
       return raw;
     };
 
-    const getReviewDate = (value) => {
-      if (!value) return null;
-
-      const parsed = new Date(value);
-      if (!isNaN(parsed.getTime())) return parsed;
-
-      const raw = String(value).toLowerCase().trim();
-      const now = new Date();
-
-      const numMatch = raw.match(/(\d+)\s+(day|days|week|weeks|month|months|year|years)\s+ago/);
-      if (numMatch) {
-        const amount = Number(numMatch[1]);
-        const unit = numMatch[2];
-        const d = new Date(now);
-
-        if (unit.includes("day")) d.setDate(d.getDate() - amount);
-        if (unit.includes("week")) d.setDate(d.getDate() - amount * 7);
-        if (unit.includes("month")) d.setMonth(d.getMonth() - amount);
-        if (unit.includes("year")) d.setFullYear(d.getFullYear() - amount);
-
-        return d;
-      }
-
-      if (raw.includes("yesterday")) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - 1);
-        return d;
-      }
-
-      if (raw.includes("today") || raw.includes("hour ago") || raw.includes("hours ago")) {
-        return now;
-      }
-
-      return null;
-    };
-
-    const filterReviewsByMonths = (reviews, filterValue) => {
-      if (!filterValue || filterValue === "all") return reviews;
-
-      const m = Number(filterValue);
-      if (!Number.isFinite(m) || m <= 0) return reviews;
-
-      const cutoff = new Date();
-      cutoff.setMonth(cutoff.getMonth() - m);
-
-      return reviews.filter((review) => {
-        const reviewDate = getReviewDate(review.time);
-
-        // Keep reviews with unknown dates so Yelp/TripAdvisor do not disappear
-        if (!reviewDate) return true;
-
-        return reviewDate >= cutoff;
-      });
-    };
-
     const normalizeReview = (review, source) => {
-      const text = normalizeText(
-        review?.text ||
+      const text =
+        normalizeText(
+          review?.text ||
           review?.reviewText ||
           review?.comment ||
           review?.content ||
@@ -127,44 +70,38 @@ module.exports = async function handler(req, res) {
           review?.review ||
           review?.reviewTextSnippet ||
           review?.textSnippet ||
-          review?.description ||
           ""
-      );
+        );
 
       if (!text || text.length < 10) return null;
 
       const author = normalizeText(
         review?.name ||
-          review?.reviewerName ||
-          review?.author ||
-          review?.userName ||
-          review?.username ||
-          review?.reviewer ||
-          review?.user?.name ||
-          "Anonymous"
+        review?.reviewerName ||
+        review?.author ||
+        review?.userName ||
+        review?.username ||
+        review?.reviewer ||
+        "Anonymous"
       );
 
       const rating = safeNumber(
         review?.stars ??
-          review?.rating ??
-          review?.score ??
-          review?.reviewRating ??
-          review?.ratingValue ??
-          review?.reviewRating?.ratingValue ??
-          0
+        review?.rating ??
+        review?.score ??
+        review?.reviewRating ??
+        0
       );
 
       const time = normalizeDate(
         review?.publishedAtDate ||
-          review?.date ||
-          review?.publishedDate ||
-          review?.reviewDate ||
-          review?.time ||
-          review?.createdAt ||
-          review?.publishedAt ||
-          review?.localizedDate ||
-          review?.datePublished ||
-          ""
+        review?.date ||
+        review?.publishedDate ||
+        review?.reviewDate ||
+        review?.time ||
+        review?.createdAt ||
+        review?.publishedAt ||
+        ""
       );
 
       return {
@@ -197,6 +134,72 @@ module.exports = async function handler(req, res) {
       return out;
     };
 
+    const parseReviewDate = (value) => {
+      if (!value) return null;
+
+      if (typeof value === "number") {
+        const d = new Date(value);
+        return isNaN(d.getTime()) ? null : d;
+      }
+
+      const raw = String(value).trim();
+      if (!raw) return null;
+
+      const parsed = new Date(raw);
+      if (!isNaN(parsed.getTime())) return parsed;
+
+      const lower = raw.toLowerCase();
+      const nMatch = lower.match(/(\d+)\s*(second|minute|hour|day|week|month|year)s?\s*ago/);
+      const oneMatch = lower.match(/(?:a|an)\s*(second|minute|hour|day|week|month|year)\s*ago/);
+
+      let amount = 0;
+      let unit = "";
+
+      if (nMatch) {
+        amount = Number(nMatch[1]);
+        unit = nMatch[2];
+      } else if (oneMatch) {
+        amount = 1;
+        unit = oneMatch[1];
+      } else if (lower.includes("yesterday")) {
+        amount = 1;
+        unit = "day";
+      }
+
+      if (!amount || !unit) return null;
+
+      const d = new Date();
+      if (unit === "second") d.setSeconds(d.getSeconds() - amount);
+      if (unit === "minute") d.setMinutes(d.getMinutes() - amount);
+      if (unit === "hour") d.setHours(d.getHours() - amount);
+      if (unit === "day") d.setDate(d.getDate() - amount);
+      if (unit === "week") d.setDate(d.getDate() - amount * 7);
+      if (unit === "month") d.setMonth(d.getMonth() - amount);
+      if (unit === "year") d.setFullYear(d.getFullYear() - amount);
+
+      return isNaN(d.getTime()) ? null : d;
+    };
+
+    const filterReviewsByMonths = (reviews, months) => {
+      const m = Number(months);
+      if (!Number.isFinite(m) || m <= 0) return reviews;
+
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - m);
+
+      return reviews.filter((review) => {
+        const d = parseReviewDate(review.time);
+        if (!d) return false;
+        return d >= cutoff;
+      });
+    };
+
+    const countBySource = (reviews) => ({
+      google: reviews.filter((r) => r.source === "google").length,
+      yelp: reviews.filter((r) => r.source === "yelp").length,
+      tripadvisor: reviews.filter((r) => r.source === "tripadvisor").length
+    });
+
     const fetchReviewsFromDataset = async (datasetId, source) => {
       if (!datasetId) return [];
 
@@ -205,7 +208,7 @@ module.exports = async function handler(req, res) {
           datasetId +
           "/items?token=" +
           APIFY_API_TOKEN +
-          "&limit=300"
+          "&limit=200"
       );
 
       if (!itemsRes.ok) {
@@ -222,27 +225,8 @@ module.exports = async function handler(req, res) {
       if (!Array.isArray(items)) return [];
 
       for (const item of items) {
-        if (item?.demo === true) {
-          console.log(source, "demo item ignored");
-          continue;
-        }
-
         if (Array.isArray(item?.reviews)) {
           for (const nested of item.reviews) {
-            const normalized = normalizeReview(nested, source);
-            if (normalized) reviews.push(normalized);
-          }
-        }
-
-        if (Array.isArray(item?.reviewsList)) {
-          for (const nested of item.reviewsList) {
-            const normalized = normalizeReview(nested, source);
-            if (normalized) reviews.push(normalized);
-          }
-        }
-
-        if (Array.isArray(item?.comments)) {
-          for (const nested of item.comments) {
             const normalized = normalizeReview(nested, source);
             if (normalized) reviews.push(normalized);
           }
@@ -252,9 +236,7 @@ module.exports = async function handler(req, res) {
         if (flat) reviews.push(flat);
       }
 
-      const clean = dedupeReviews(reviews);
-      console.log(source, "normalized reviews count:", clean.length);
-      return clean;
+      return dedupeReviews(reviews);
     };
 
     const checkRun = async (id, source) => {
@@ -278,8 +260,6 @@ module.exports = async function handler(req, res) {
       const runData = await runRes.json();
       const status = runData?.data?.status;
 
-      console.log(source, "run status:", status);
-
       if (status === "SUCCEEDED") {
         const datasetId = runData?.data?.defaultDatasetId;
         const reviews = await fetchReviewsFromDataset(datasetId, source);
@@ -287,7 +267,6 @@ module.exports = async function handler(req, res) {
       }
 
       if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") {
-        console.log(source, "run ended without success:", status);
         return { status: "done", reviews: [] };
       }
 
@@ -310,32 +289,39 @@ module.exports = async function handler(req, res) {
         return res.status(200).json({ status: "running" });
       }
 
-      const allReviewsBeforeFilter = dedupeReviews([
+      const allReviews = dedupeReviews([
         ...gResult.reviews,
         ...yResult.reviews,
         ...tResult.reviews
       ]);
 
-      const allReviews = filterReviewsByMonths(allReviewsBeforeFilter, selectedMonthsFilter);
-
       if (allReviews.length === 0) {
+        return res.status(404).json({ error: "No reviews found from any source." });
+      }
+
+      const filteredReviews = filterReviewsByMonths(allReviews, monthsBack);
+
+      if (filteredReviews.length === 0) {
+        const m = Number(monthsBack);
         return res.status(404).json({
-          error:
-            "No reviews found for the selected time filter. Try All Reviews or a larger time range."
+          error: Number.isFinite(m) && m > 0
+            ? `Reviews were found, but none were dated within the past ${m} months. Try All reviews or a larger window.`
+            : "No reviews found from any source."
         });
       }
 
+      const filteredSourceCounts = countBySource(filteredReviews);
+      const allSourceCounts = countBySource(allReviews);
+
       return res.status(200).json({
         status: "done",
-        reviews: allReviews,
-        total: allReviews.length,
-        totalBeforeFilter: allReviewsBeforeFilter.length,
-        monthsFilter: selectedMonthsFilter,
-        sources: {
-          google: gResult.reviews.length,
-          yelp: yResult.reviews.length,
-          tripadvisor: tResult.reviews.length
-        }
+        reviews: filteredReviews,
+        total: filteredReviews.length,
+        totalBeforeFilter: allReviews.length,
+        filteredOut: allReviews.length - filteredReviews.length,
+        monthsBack: Number(monthsBack) || null,
+        sources: filteredSourceCounts,
+        sourceTotalsBeforeFilter: allSourceCounts
       });
     }
 
@@ -362,14 +348,14 @@ module.exports = async function handler(req, res) {
       const directMatch = placeUrl.match(/place_id:([a-zA-Z0-9_-]+)/);
       if (directMatch) {
         placeId = directMatch[1];
-        console.log("Method 0 direct place_id:", placeId);
+        console.log("Method 0 (direct place_id):", placeId);
       }
 
       if (!placeId) {
         const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
         if (chMatch) {
           placeId = chMatch[0];
-          console.log("Method 1 ChI found:", placeId);
+          console.log("Method 1 found:", placeId);
         }
       }
 
@@ -434,7 +420,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 2 nearby exact found:", placeId, best.name);
+          console.log("Method 2 found:", placeId, best.name);
         }
       }
 
@@ -455,7 +441,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 3 nearby found:", placeId, best.name);
+          console.log("Method 3 found:", placeId, best.name);
         }
       }
 
@@ -476,14 +462,14 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 4 text exact found:", placeId, best.name);
+          console.log("Method 4 found:", placeId, best.name);
         }
       }
 
       if (!placeId && requestedName) {
         const r = await fetch(
           "https://maps.googleapis.com/maps/api/place/textsearch/json?query=" +
-            encodeURIComponent(requestedName + " " + (addressHint || "")) +
+            encodeURIComponent(requestedName) +
             "&key=" +
             GOOGLE_API_KEY
         );
@@ -493,7 +479,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 5 text found:", placeId, best.name);
+          console.log("Method 5 found:", placeId, best.name);
         }
       }
     }
@@ -512,7 +498,6 @@ module.exports = async function handler(req, res) {
     const detData = await detRes.json();
 
     if (detData.status !== "OK") {
-      console.log("Google details failed:", detData);
       return res.status(500).json({ error: "Google Place Details failed." });
     }
 
@@ -530,9 +515,7 @@ module.exports = async function handler(req, res) {
       .join(" ")
       .trim();
 
-    console.log("Restaurant found:", place.name, place.formatted_address);
-    console.log("Selected months filter:", selectedMonthsFilter);
-    console.log("Search query for TripAdvisor:", searchQuery);
+    console.log("Search query for Yelp/TripAdvisor:", searchQuery);
 
     const gRes = await fetch(
       "https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=" + APIFY_API_TOKEN,
@@ -548,73 +531,36 @@ module.exports = async function handler(req, res) {
       }
     );
 
-    const gText = await gRes.text();
-    let gData = {};
-    try {
-      gData = JSON.parse(gText);
-    } catch {
-      console.log("Google Apify non-json response:", gText);
-    }
-
-    if (!gRes.ok) {
-      console.log("Google Apify API error:", gText);
-    }
+    const gData = await gRes.json();
 
     let safeYelpRunId = null;
 
     try {
       if (yelpUrl && yelpUrl.trim()) {
-        const cleanYelpUrl = yelpUrl.trim();
-        console.log("Starting Yelp actor with direct URL:", cleanYelpUrl);
-
-        const yelpInputs = [
-          {
-            directUrls: [cleanYelpUrl],
-            scrapeReviews: true,
-            maxReviewsPerBusiness: 50,
-            reviewSortOrder: "date_desc",
-            proxyConfiguration: {
-              useApifyProxy: true,
-              apifyProxyGroups: ["RESIDENTIAL"]
-            }
-          },
-          {
-            startUrls: [{ url: cleanYelpUrl }],
-            maxItems: 50,
-            scrapeReviews: true,
-            sortBy: "date_desc",
-            proxyConfiguration: {
-              useApifyProxy: true,
-              apifyProxyGroups: ["RESIDENTIAL"]
-            }
-          }
-        ];
+        console.log("Starting Yelp with direct URL:", yelpUrl.trim());
 
         const yRes = await fetch(
           "https://api.apify.com/v2/acts/agents~yelp-reviews/runs?token=" + APIFY_API_TOKEN,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(yelpInputs[0])
+            body: JSON.stringify({
+              startUrls: [{ url: yelpUrl.trim() }],
+              maxItems: 30,
+              sortBy: "yelp"
+            })
           }
         );
 
-        const yText = await yRes.text();
-        let yData = {};
-        try {
-          yData = JSON.parse(yText);
-        } catch {
-          console.log("Yelp non-json response:", yText);
-        }
-
         if (!yRes.ok) {
-          console.log("Yelp API error:", yText);
+          const errText = await yRes.text();
+          console.log("Yelp API error:", errText);
         } else {
+          const yData = await yRes.json();
           safeYelpRunId = yData?.data?.id || null;
-          console.log("Yelp run started:", safeYelpRunId);
         }
       } else {
-        console.log("No Yelp URL provided. Skipping Yelp.");
+        console.log("No Yelp URL provided. Skipping Yelp start.");
       }
     } catch (err) {
       console.log("Yelp failed:", err.message);
@@ -635,19 +581,12 @@ module.exports = async function handler(req, res) {
         }
       );
 
-      const tText = await tRes.text();
-      let tData = {};
-      try {
-        tData = JSON.parse(tText);
-      } catch {
-        console.log("TripAdvisor non-json response:", tText);
-      }
-
       if (!tRes.ok) {
-        console.log("TripAdvisor API error:", tText);
+        const errText = await tRes.text();
+        console.log("TripAdvisor API error:", errText);
       } else {
+        const tData = await tRes.json();
         safeTripRunId = tData?.data?.id || null;
-        console.log("TripAdvisor run started:", safeTripRunId);
       }
     } catch (err) {
       console.log("TripAdvisor failed:", err.message);
@@ -658,16 +597,13 @@ module.exports = async function handler(req, res) {
       runId: gData?.data?.id || null,
       yelpRunId: safeYelpRunId,
       tripRunId: safeTripRunId,
-      monthsFilter: selectedMonthsFilter,
       restaurant: {
         name: place.name,
         city,
         address: place.formatted_address,
         rating: place.rating,
         totalReviews: place.user_ratings_total,
-        placeId,
-        lat: place.geometry?.location?.lat || null,
-        lng: place.geometry?.location?.lng || null
+        placeId
       }
     });
   } catch (err) {

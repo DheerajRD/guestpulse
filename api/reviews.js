@@ -17,8 +17,11 @@ module.exports = async function handler(req, res) {
     action,
     addressHint,
     yelpUrl,
-    monthsFilter
+    monthsFilter,
+    months
   } = req.body || {};
+
+  const selectedMonthsFilter = monthsFilter || months || "all";
 
   const GOOGLE_API_KEY = process.env.GOOGLE_API_KEY;
   const APIFY_API_TOKEN = process.env.APIFY_API_TOKEN;
@@ -98,16 +101,16 @@ module.exports = async function handler(req, res) {
     const filterReviewsByMonths = (reviews, filterValue) => {
       if (!filterValue || filterValue === "all") return reviews;
 
-      const months = Number(filterValue);
-      if (!Number.isFinite(months) || months <= 0) return reviews;
+      const m = Number(filterValue);
+      if (!Number.isFinite(m) || m <= 0) return reviews;
 
       const cutoff = new Date();
-      cutoff.setMonth(cutoff.getMonth() - months);
+      cutoff.setMonth(cutoff.getMonth() - m);
 
       return reviews.filter((review) => {
         const reviewDate = getReviewDate(review.time);
 
-        // Keep unknown dates so Yelp/TripAdvisor do not disappear completely
+        // Keep reviews with unknown dates so Yelp/TripAdvisor do not disappear
         if (!reviewDate) return true;
 
         return reviewDate >= cutoff;
@@ -115,18 +118,18 @@ module.exports = async function handler(req, res) {
     };
 
     const normalizeReview = (review, source) => {
-      const text =
-        normalizeText(
-          review?.text ||
-            review?.reviewText ||
-            review?.comment ||
-            review?.content ||
-            review?.reviewBody ||
-            review?.review ||
-            review?.reviewTextSnippet ||
-            review?.textSnippet ||
-            ""
-        );
+      const text = normalizeText(
+        review?.text ||
+          review?.reviewText ||
+          review?.comment ||
+          review?.content ||
+          review?.reviewBody ||
+          review?.review ||
+          review?.reviewTextSnippet ||
+          review?.textSnippet ||
+          review?.description ||
+          ""
+      );
 
       if (!text || text.length < 10) return null;
 
@@ -137,6 +140,7 @@ module.exports = async function handler(req, res) {
           review?.userName ||
           review?.username ||
           review?.reviewer ||
+          review?.user?.name ||
           "Anonymous"
       );
 
@@ -145,6 +149,8 @@ module.exports = async function handler(req, res) {
           review?.rating ??
           review?.score ??
           review?.reviewRating ??
+          review?.ratingValue ??
+          review?.reviewRating?.ratingValue ??
           0
       );
 
@@ -156,6 +162,8 @@ module.exports = async function handler(req, res) {
           review?.time ||
           review?.createdAt ||
           review?.publishedAt ||
+          review?.localizedDate ||
+          review?.datePublished ||
           ""
       );
 
@@ -197,7 +205,7 @@ module.exports = async function handler(req, res) {
           datasetId +
           "/items?token=" +
           APIFY_API_TOKEN +
-          "&limit=200"
+          "&limit=300"
       );
 
       if (!itemsRes.ok) {
@@ -214,8 +222,27 @@ module.exports = async function handler(req, res) {
       if (!Array.isArray(items)) return [];
 
       for (const item of items) {
+        if (item?.demo === true) {
+          console.log(source, "demo item ignored");
+          continue;
+        }
+
         if (Array.isArray(item?.reviews)) {
           for (const nested of item.reviews) {
+            const normalized = normalizeReview(nested, source);
+            if (normalized) reviews.push(normalized);
+          }
+        }
+
+        if (Array.isArray(item?.reviewsList)) {
+          for (const nested of item.reviewsList) {
+            const normalized = normalizeReview(nested, source);
+            if (normalized) reviews.push(normalized);
+          }
+        }
+
+        if (Array.isArray(item?.comments)) {
+          for (const nested of item.comments) {
             const normalized = normalizeReview(nested, source);
             if (normalized) reviews.push(normalized);
           }
@@ -225,7 +252,9 @@ module.exports = async function handler(req, res) {
         if (flat) reviews.push(flat);
       }
 
-      return dedupeReviews(reviews);
+      const clean = dedupeReviews(reviews);
+      console.log(source, "normalized reviews count:", clean.length);
+      return clean;
     };
 
     const checkRun = async (id, source) => {
@@ -249,6 +278,8 @@ module.exports = async function handler(req, res) {
       const runData = await runRes.json();
       const status = runData?.data?.status;
 
+      console.log(source, "run status:", status);
+
       if (status === "SUCCEEDED") {
         const datasetId = runData?.data?.defaultDatasetId;
         const reviews = await fetchReviewsFromDataset(datasetId, source);
@@ -256,6 +287,7 @@ module.exports = async function handler(req, res) {
       }
 
       if (status === "FAILED" || status === "ABORTED" || status === "TIMED-OUT") {
+        console.log(source, "run ended without success:", status);
         return { status: "done", reviews: [] };
       }
 
@@ -284,7 +316,7 @@ module.exports = async function handler(req, res) {
         ...tResult.reviews
       ]);
 
-      const allReviews = filterReviewsByMonths(allReviewsBeforeFilter, monthsFilter);
+      const allReviews = filterReviewsByMonths(allReviewsBeforeFilter, selectedMonthsFilter);
 
       if (allReviews.length === 0) {
         return res.status(404).json({
@@ -298,7 +330,7 @@ module.exports = async function handler(req, res) {
         reviews: allReviews,
         total: allReviews.length,
         totalBeforeFilter: allReviewsBeforeFilter.length,
-        monthsFilter: monthsFilter || "all",
+        monthsFilter: selectedMonthsFilter,
         sources: {
           google: gResult.reviews.length,
           yelp: yResult.reviews.length,
@@ -330,14 +362,14 @@ module.exports = async function handler(req, res) {
       const directMatch = placeUrl.match(/place_id:([a-zA-Z0-9_-]+)/);
       if (directMatch) {
         placeId = directMatch[1];
-        console.log("Method 0 (direct place_id):", placeId);
+        console.log("Method 0 direct place_id:", placeId);
       }
 
       if (!placeId) {
         const chMatch = placeUrl.match(/ChI[a-zA-Z0-9_-]+/);
         if (chMatch) {
           placeId = chMatch[0];
-          console.log("Method 1 found:", placeId);
+          console.log("Method 1 ChI found:", placeId);
         }
       }
 
@@ -402,7 +434,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 2 found:", placeId, best.name);
+          console.log("Method 2 nearby exact found:", placeId, best.name);
         }
       }
 
@@ -423,7 +455,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 3 found:", placeId, best.name);
+          console.log("Method 3 nearby found:", placeId, best.name);
         }
       }
 
@@ -444,14 +476,14 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 4 found:", placeId, best.name);
+          console.log("Method 4 text exact found:", placeId, best.name);
         }
       }
 
       if (!placeId && requestedName) {
         const r = await fetch(
           "https://maps.googleapis.com/maps/api/place/textsearch/json?query=" +
-            encodeURIComponent(requestedName) +
+            encodeURIComponent(requestedName + " " + (addressHint || "")) +
             "&key=" +
             GOOGLE_API_KEY
         );
@@ -461,7 +493,7 @@ module.exports = async function handler(req, res) {
 
         if (best?.place_id) {
           placeId = best.place_id;
-          console.log("Method 5 found:", placeId, best.name);
+          console.log("Method 5 text found:", placeId, best.name);
         }
       }
     }
@@ -480,6 +512,7 @@ module.exports = async function handler(req, res) {
     const detData = await detRes.json();
 
     if (detData.status !== "OK") {
+      console.log("Google details failed:", detData);
       return res.status(500).json({ error: "Google Place Details failed." });
     }
 
@@ -497,7 +530,9 @@ module.exports = async function handler(req, res) {
       .join(" ")
       .trim();
 
-    console.log("Search query for Yelp/TripAdvisor:", searchQuery);
+    console.log("Restaurant found:", place.name, place.formatted_address);
+    console.log("Selected months filter:", selectedMonthsFilter);
+    console.log("Search query for TripAdvisor:", searchQuery);
 
     const gRes = await fetch(
       "https://api.apify.com/v2/acts/Xb8osYTtOjlsgI6k9/runs?token=" + APIFY_API_TOKEN,
@@ -513,36 +548,73 @@ module.exports = async function handler(req, res) {
       }
     );
 
-    const gData = await gRes.json();
+    const gText = await gRes.text();
+    let gData = {};
+    try {
+      gData = JSON.parse(gText);
+    } catch {
+      console.log("Google Apify non-json response:", gText);
+    }
+
+    if (!gRes.ok) {
+      console.log("Google Apify API error:", gText);
+    }
 
     let safeYelpRunId = null;
 
     try {
       if (yelpUrl && yelpUrl.trim()) {
-        console.log("Starting Yelp with direct URL:", yelpUrl.trim());
+        const cleanYelpUrl = yelpUrl.trim();
+        console.log("Starting Yelp actor with direct URL:", cleanYelpUrl);
+
+        const yelpInputs = [
+          {
+            directUrls: [cleanYelpUrl],
+            scrapeReviews: true,
+            maxReviewsPerBusiness: 50,
+            reviewSortOrder: "date_desc",
+            proxyConfiguration: {
+              useApifyProxy: true,
+              apifyProxyGroups: ["RESIDENTIAL"]
+            }
+          },
+          {
+            startUrls: [{ url: cleanYelpUrl }],
+            maxItems: 50,
+            scrapeReviews: true,
+            sortBy: "date_desc",
+            proxyConfiguration: {
+              useApifyProxy: true,
+              apifyProxyGroups: ["RESIDENTIAL"]
+            }
+          }
+        ];
 
         const yRes = await fetch(
           "https://api.apify.com/v2/acts/agents~yelp-reviews/runs?token=" + APIFY_API_TOKEN,
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              startUrls: [{ url: yelpUrl.trim() }],
-              maxItems: 30,
-              sortBy: "yelp"
-            })
+            body: JSON.stringify(yelpInputs[0])
           }
         );
 
+        const yText = await yRes.text();
+        let yData = {};
+        try {
+          yData = JSON.parse(yText);
+        } catch {
+          console.log("Yelp non-json response:", yText);
+        }
+
         if (!yRes.ok) {
-          const errText = await yRes.text();
-          console.log("Yelp API error:", errText);
+          console.log("Yelp API error:", yText);
         } else {
-          const yData = await yRes.json();
           safeYelpRunId = yData?.data?.id || null;
+          console.log("Yelp run started:", safeYelpRunId);
         }
       } else {
-        console.log("No Yelp URL provided. Skipping Yelp start.");
+        console.log("No Yelp URL provided. Skipping Yelp.");
       }
     } catch (err) {
       console.log("Yelp failed:", err.message);
@@ -563,12 +635,19 @@ module.exports = async function handler(req, res) {
         }
       );
 
+      const tText = await tRes.text();
+      let tData = {};
+      try {
+        tData = JSON.parse(tText);
+      } catch {
+        console.log("TripAdvisor non-json response:", tText);
+      }
+
       if (!tRes.ok) {
-        const errText = await tRes.text();
-        console.log("TripAdvisor API error:", errText);
+        console.log("TripAdvisor API error:", tText);
       } else {
-        const tData = await tRes.json();
         safeTripRunId = tData?.data?.id || null;
+        console.log("TripAdvisor run started:", safeTripRunId);
       }
     } catch (err) {
       console.log("TripAdvisor failed:", err.message);
@@ -579,13 +658,16 @@ module.exports = async function handler(req, res) {
       runId: gData?.data?.id || null,
       yelpRunId: safeYelpRunId,
       tripRunId: safeTripRunId,
+      monthsFilter: selectedMonthsFilter,
       restaurant: {
         name: place.name,
         city,
         address: place.formatted_address,
         rating: place.rating,
         totalReviews: place.user_ratings_total,
-        placeId
+        placeId,
+        lat: place.geometry?.location?.lat || null,
+        lng: place.geometry?.location?.lng || null
       }
     });
   } catch (err) {

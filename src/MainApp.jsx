@@ -39,6 +39,23 @@ const C = {
 
 const healthColor = (s) => (s > 70 ? C.green : s > 40 ? C.cyan : C.red);
 
+const REVIEW_FILTERS = [
+  { value: "3", label: "Past 3 months" },
+  { value: "6", label: "Past 6 months" },
+  { value: "9", label: "Past 9 months" },
+  { value: "all", label: "All reviews" },
+];
+
+const getReviewFilterLabel = (value) => {
+  const found = REVIEW_FILTERS.find((item) => item.value === String(value));
+  return found ? found.label : "Past 3 months";
+};
+
+const getMonthsBackValue = (value) => {
+  const n = Number(value);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
 function fixAnalysis(raw, count) {
   if (!raw || typeof raw !== "object") return null;
   const a = raw.analysis && typeof raw.analysis === "object" ? raw.analysis : raw;
@@ -413,6 +430,7 @@ export default function MainApp() {
  const [url, setUrl] = useState("");
   const [addressHint, setAddressHint] = useState("");
   const [yelpUrl, setYelpUrl] = useState("");
+  const [reviewMonths, setReviewMonths] = useState("3");
   const [restaurant, setRestaurant] = useState(null);
   const [analysis, setAnalysis] = useState(null);
   const [rawReviews, setRawReviews] = useState([]);
@@ -480,6 +498,9 @@ export default function MainApp() {
       return;
     }
 
+    const monthsBack = getMonthsBackValue(reviewMonths);
+    const reviewWindowLabel = getReviewFilterLabel(reviewMonths);
+
     setError("");
     setRestaurant(null);
     setAnalysis(null);
@@ -489,7 +510,7 @@ export default function MainApp() {
     setCompetitorLoading(false);
     setStage("fetching");
     setProgress(10);
-    setProgMsg("Connecting to Google Maps...");
+    setProgMsg(`Connecting to Google Maps for ${reviewWindowLabel.toLowerCase()}...`);
 
     try {
       await new Promise((r) => setTimeout(r, 250));
@@ -503,6 +524,7 @@ export default function MainApp() {
           placeUrl: url.trim(),
           addressHint: addressHint.trim(),
           yelpUrl: yelpUrl.trim(),
+          monthsBack,
         }),
       });
 
@@ -519,7 +541,7 @@ export default function MainApp() {
 
       setRestaurant(d1.restaurant);
       setProgress(28);
-      setProgMsg("Review sources connected — pulling latest reviews...");
+      setProgMsg(`Review sources connected — pulling ${reviewWindowLabel.toLowerCase()}...`);
 
       let reviews = null;
       let counts = null;
@@ -527,7 +549,7 @@ export default function MainApp() {
       for (let i = 0; i < 24; i++) {
         await new Promise((r) => setTimeout(r, 5000));
         setProgress(30 + Math.min(i * 2, 26));
-        setProgMsg(`Collecting review data... (${(i + 1) * 5}s)`);
+        setProgMsg(`Collecting ${reviewWindowLabel.toLowerCase()} review data... (${(i + 1) * 5}s)`);
 
         const r2 = await fetch("/api/reviews", {
           method: "POST",
@@ -537,6 +559,7 @@ export default function MainApp() {
             runId: d1.runId,
             yelpRunId: d1.yelpRunId,
             tripRunId: d1.tripRunId,
+            monthsBack,
           }),
         });
 
@@ -556,13 +579,13 @@ export default function MainApp() {
         }
       }
 
-      if (!reviews || reviews.length === 0) throw new Error("No reviews found. Try again.");
+      if (!reviews || reviews.length === 0) throw new Error(`No reviews found for ${reviewWindowLabel.toLowerCase()}. Try a larger filter.`);
 
       setRawReviews(reviews);
       setSourceCounts(counts || { google: 0, yelp: 0, tripadvisor: 0 });
 
       setProgress(68);
-      setProgMsg(`Claude AI is analysing ${reviews.length} reviews...`);
+      setProgMsg(`Claude AI is analysing ${reviews.length} reviews from ${reviewWindowLabel.toLowerCase()}...`);
 
       const r3 = await fetch("/api/analyse", {
         method: "POST",
@@ -587,13 +610,13 @@ export default function MainApp() {
       if (!fixed) throw new Error("Empty analysis data. Please try again.");
 
       setProgress(100);
-      setProgMsg(`Done — ${reviews.length} reviews analysed.`);
+      setProgMsg(`Done — ${reviews.length} reviews analysed from ${reviewWindowLabel.toLowerCase()}.`);
       await new Promise((r) => setTimeout(r, 350));
       setAnalysis(fixed);
       fetchCompetitors(d1.restaurant, fixed);
       setStage("done");
       setActiveTab("charts");
-      showToast("✅ Premium analysis ready");
+      showToast(`✅ Premium analysis ready (${reviewWindowLabel})`);
     } catch (e) {
       setError(e.message || "Something went wrong.");
       setStage("error");
@@ -605,6 +628,7 @@ export default function MainApp() {
     setUrl("");
     setAddressHint("");
     setYelpUrl("");
+    setReviewMonths("3");
     setRestaurant(null);
     setAnalysis(null);
     setRawReviews([]);
@@ -624,6 +648,7 @@ export default function MainApp() {
 
   const hs = analysis?.healthScore || 0;
   const isLoading = stage === "fetching";
+  const reviewWindowLabel = getReviewFilterLabel(reviewMonths);
 
   const googleReviews = rawReviews.filter((r) => r.source === "google");
   const yelpReviews = rawReviews.filter((r) => r.source === "yelp");
@@ -855,6 +880,42 @@ export default function MainApp() {
                 />
               </div>
 
+              <div className="two-col">
+                <div>
+                  <div style={{ color: C.muted, fontSize: 12, fontWeight: 800, marginBottom: 7, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                    Review time filter
+                  </div>
+                  <select
+                    className="input"
+                    value={reviewMonths}
+                    onChange={(e) => setReviewMonths(e.target.value)}
+                    disabled={isLoading}
+                    style={{ cursor: isLoading ? "not-allowed" : "pointer" }}
+                  >
+                    {REVIEW_FILTERS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div
+                  style={{
+                    background: "#f8fafc",
+                    border: `1px solid ${C.border}`,
+                    borderRadius: 16,
+                    padding: 14,
+                    color: C.muted,
+                    fontSize: 13,
+                    lineHeight: 1.55,
+                  }}
+                >
+                  Current selection: <span style={{ color: C.white, fontWeight: 800 }}>{reviewWindowLabel}</span>.
+                  The dashboard, AI summary, complaints, praises, dishes, and charts will use this selected review window.
+                </div>
+              </div>
+
               {error ? <div style={{ color: C.red, fontSize: 13, fontWeight: 700 }}>⚠️ {error}</div> : null}
 
               <div className="two-col">
@@ -953,7 +1014,7 @@ export default function MainApp() {
 
             <div className="stats-grid">
               <StatCard label="Restaurant Health" value={analysis ? `${hs}%` : "—"} sub="AI-generated performance score" accent={healthColor(hs)} />
-              <StatCard label="Reviews Analysed" value={rawReviews.length || "—"} sub="Across all connected sources" accent={C.cyan} />
+              <StatCard label="Reviews Analysed" value={rawReviews.length || "—"} sub={reviewWindowLabel + " • across connected sources"} accent={C.cyan} />
               <StatCard label="Positive Signals" value={analysis?.sentiment?.positive ?? "—"} sub="Strong customer experiences" accent={C.green2} />
               <StatCard label="Negative Signals" value={analysis?.sentiment?.negative ?? "—"} sub="Issues worth owner attention" accent={C.red} />
             </div>
@@ -1159,7 +1220,7 @@ export default function MainApp() {
                     style={{ marginTop: 14 }}
                   >
                     <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.8 }}>
-                      These charts are built directly from your existing <span style={{ color: C.white, fontWeight: 700 }}>rawReviews</span>,
+                      These charts are built directly from your filtered <span style={{ color: C.white, fontWeight: 700 }}>rawReviews</span> ({reviewWindowLabel}),
                       <span style={{ color: C.white, fontWeight: 700 }}> sourceCounts</span>, and
                       <span style={{ color: C.white, fontWeight: 700 }}> analysis</span>. Your core backend idea stays the same —
                       this simply makes your AI output more premium, easier to read, and more useful for owners and customers.
@@ -1377,7 +1438,7 @@ export default function MainApp() {
 
                     <SectionCard title="Platform Breakdown" sub="Review coverage used in analysis">
                       <div style={{ color: C.muted, fontSize: 13, lineHeight: 1.8, marginBottom: 14 }}>
-                        This analysis is based on <span style={{ color: C.white, fontWeight: 800 }}>{rawReviews.length}</span> reviews:
+                        This analysis is based on <span style={{ color: C.white, fontWeight: 800 }}>{rawReviews.length}</span> reviews from <span style={{ color: C.white, fontWeight: 800 }}>{reviewWindowLabel}</span>:
                       </div>
                       <ProgressRow label="Google" value={sourceCounts.google} total={rawReviews.length} color={C.blue} />
                       <ProgressRow label="Yelp" value={sourceCounts.yelp} total={rawReviews.length} color={C.green2} />

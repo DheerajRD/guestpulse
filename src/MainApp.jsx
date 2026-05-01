@@ -813,7 +813,7 @@ export default function MainApp() {
                   boxShadow: "0 4px 12px rgba(37,99,235,0.15)",
                 }}
               >
-                GP
+                GC
               </div>
               <div>
                 <div style={{ fontSize: 24, fontWeight: 700, color: C.white, fontFamily: "'Playfair Display', serif", letterSpacing: 0.2 }}>goodcacuts AI</div>

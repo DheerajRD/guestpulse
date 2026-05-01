@@ -816,7 +816,7 @@ export default function MainApp() {
                 GP
               </div>
               <div>
-                <div style={{ fontSize: 24, fontWeight: 700, color: C.white, fontFamily: "'Playfair Display', serif", letterSpacing: 0.2 }}>GuestPulse AI</div>
+                <div style={{ fontSize: 24, fontWeight: 700, color: C.white, fontFamily: "'Playfair Display', serif", letterSpacing: 0.2 }}>goodcacuts AI</div>
                 <div style={{ fontSize: 12, color: C.muted }}>Restaurant intelligence dashboard</div>
               </div>
             </div>
@@ -849,7 +849,7 @@ export default function MainApp() {
             </div>
 
             <div style={{ marginTop: 14, color: C.muted, fontSize: 15, lineHeight: 1.8, maxWidth: 740 }}>
-              Paste a Google Maps restaurant link, optionally add Yelp for exact matching, and GuestPulse will collect reviews,
+              Paste a Google Maps restaurant link, optionally add Yelp for exact matching, and goodcacuts will collect reviews,
               analyze customer sentiment, surface trending dishes, and generate owner-ready insights in one premium dashboard.
             </div>
 

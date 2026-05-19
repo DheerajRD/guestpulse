@@ -319,6 +319,47 @@ module.exports = async function handler(req, res) {
         sourceTotalsBeforeFilter: allSourceCounts
       });
     }
+    // Yelp-only mode: allow user to paste only Yelp URL without Google Maps URL
+if ((!placeUrl || !placeUrl.trim()) && yelpUrl && yelpUrl.trim()) {
+  console.log("Starting Yelp-only mode:", yelpUrl.trim());
+
+  const yRes = await fetch(
+    "https://api.apify.com/v2/acts/tri_angle~yelp-review-scraper/runs?token=" + APIFY_API_TOKEN,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        startUrls: [{ url: yelpUrl.trim() }],
+        maxItems: 50,
+        sortBy: "yelp"
+      })
+    }
+  );
+
+  if (!yRes.ok) {
+    const errText = await yRes.text();
+    return res.status(500).json({
+      error: "Yelp API error: " + errText.substring(0, 200)
+    });
+  }
+
+  const yData = await yRes.json();
+
+  return res.status(200).json({
+    status: "started",
+    runId: null,
+    yelpRunId: yData?.data?.id || null,
+    tripRunId: null,
+    restaurant: {
+      name: "Yelp Restaurant",
+      city: "",
+      address: yelpUrl.trim(),
+      rating: 0,
+      totalReviews: 0,
+      placeId: null
+    }
+  });
+}
 
     let placeId = directId || null;
 

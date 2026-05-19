@@ -493,10 +493,10 @@ export default function MainApp() {
   };
 
   const analyse = async () => {
-    if (!url.trim()) {
-      setError("Please paste a Google Maps URL.");
-      return;
-    }
+   if (!url.trim() && !yelpUrl.trim()) {
+  setError("Please paste a Google Maps URL or Yelp URL.");
+  return;
+}
 
     const monthsBack = getMonthsBackValue(reviewMonths);
     const reviewWindowLabel = getReviewFilterLabel(reviewMonths);

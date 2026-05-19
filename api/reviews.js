@@ -77,11 +77,14 @@ module.exports = async function handler(req, res) {
     "Anonymous"
   );
 
-  const rating = safeNumber(
-    review?.Rating ??
-    review?.rating ??
-    0
-  );
+ const rating = safeNumber(
+  review?.Rating ??
+  review?.rating ??
+  review?.stars ??
+  review?.reviewRating ??
+  review?.reviewDetailedRating?.overall ??
+  0
+);
 
   const time = normalizeDate(
     review?.Date ||

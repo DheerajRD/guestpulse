@@ -30,9 +30,9 @@ export default function LandingPage({ onStart }) {
             fontSize: 18,
           }}
         >
-          GC
+          GR
         </div>
-        <span style={{ fontSize: 32, fontWeight: 700 }}>GoodCacuts</span>
+        <span style={{ fontSize: 32, fontWeight: 700 }}>GudReview</span>
       </div>
 
       <h1
@@ -77,7 +77,7 @@ export default function LandingPage({ onStart }) {
           boxShadow: "0 8px 20px rgba(22,163,74,0.18)",
         }}
       >
-        Good to Start →
+        Gud to Start →
       </button>
 
       <p
